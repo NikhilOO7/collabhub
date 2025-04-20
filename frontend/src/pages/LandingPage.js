@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Container,
@@ -7,7 +7,7 @@ import {
   Grid,
   Card,
   CardContent,
-  CardMedia,
+  Paper,
   AppBar,
   Toolbar,
   useMediaQuery,
@@ -24,12 +24,6 @@ import {
 import {
   Menu as MenuIcon,
   Close as CloseIcon,
-  Chat as ChatIcon,
-  VideoCall as VideoCallIcon,
-  Task as TaskIcon,
-  People as PeopleIcon,
-  Security as SecurityIcon,
-  Speed as SpeedIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
@@ -77,7 +71,7 @@ const TypedText = ({ texts, delay = 3000 }) => {
   return (
     <Typography 
       variant="h3" 
-      component="span" 
+      component="div" 
       sx={{ 
         color: 'primary.main',
         display: 'inline-block',
@@ -102,12 +96,13 @@ const TypedText = ({ texts, delay = 3000 }) => {
   );
 };
 
-// Feature card component
+// Feature card component with equal height
 const FeatureCard = ({ icon, title, description }) => {
   const theme = useTheme();
   
   return (
-    <Card 
+    <Paper 
+      elevation={2}
       sx={{ 
         height: '100%', 
         display: 'flex', 
@@ -115,76 +110,193 @@ const FeatureCard = ({ icon, title, description }) => {
         transition: 'transform 0.3s, box-shadow 0.3s',
         '&:hover': {
           transform: 'translateY(-5px)',
-          boxShadow: theme.shadows[10],
+          boxShadow: theme.shadows[8],
         },
+        borderRadius: 3,
+        overflow: 'hidden',
       }}
-      elevation={2}
     >
-      <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 3 }}>
+      <Box sx={{ p: 4, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
         <Box 
           sx={{ 
             display: 'flex', 
-            justifyContent: 'center', 
-            mb: 2 
+            justifyContent: 'center',
+            alignItems: 'center',
+            mb: 3,
+            height: 80,
           }}
         >
-          {icon}
+          {/* SVG icons for each feature type */}
+          {icon === 'chat' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="4" width="20" height="16" rx="2" fill="#3f51b5" fillOpacity="0.2" />
+              <rect x="6" y="8" width="12" height="2" rx="1" fill="#3f51b5" />
+              <rect x="6" y="12" width="12" height="2" rx="1" fill="#3f51b5" />
+              <rect x="6" y="16" width="6" height="2" rx="1" fill="#3f51b5" />
+            </svg>
+          )}
+          {icon === 'video' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="6" width="14" height="12" rx="2" fill="#3f51b5" fillOpacity="0.2" />
+              <path d="M16 9L22 6V18L16 15V9Z" fill="#3f51b5" fillOpacity="0.2" stroke="#3f51b5" strokeWidth="1.5" />
+              <circle cx="9" cy="12" r="3" fill="#3f51b5" />
+            </svg>
+          )}
+          {icon === 'task' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="4" width="20" height="16" rx="2" fill="#3f51b5" fillOpacity="0.2" />
+              <path d="M7 12L10 15L17 8" stroke="#3f51b5" strokeWidth="2" />
+            </svg>
+          )}
+          {icon === 'workspace' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <circle cx="12" cy="8" r="4" fill="#3f51b5" fillOpacity="0.2" />
+              <circle cx="6" cy="16" r="3" fill="#3f51b5" fillOpacity="0.2" />
+              <circle cx="18" cy="16" r="3" fill="#3f51b5" fillOpacity="0.2" />
+              <path d="M12 12L6 16M12 12L18 16" stroke="#3f51b5" strokeWidth="1.5" />
+            </svg>
+          )}
+          {icon === 'security' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L4 5V11C4 16.55 7.84 21.74 12 23C16.16 21.74 20 16.55 20 11V5L12 2Z" fill="#3f51b5" fillOpacity="0.2" stroke="#3f51b5" strokeWidth="1.5" />
+              <path d="M9 12L11 14L15 10" stroke="#3f51b5" strokeWidth="2" />
+            </svg>
+          )}
+          {icon === 'ai' && (
+            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="2" y="5" width="20" height="14" rx="2" fill="#3f51b5" fillOpacity="0.2" />
+              <circle cx="7" cy="9" r="1.5" fill="#3f51b5" />
+              <circle cx="7" cy="15" r="1.5" fill="#3f51b5" />
+              <circle cx="17" cy="9" r="1.5" fill="#3f51b5" />
+              <circle cx="17" cy="15" r="1.5" fill="#3f51b5" />
+              <rect x="10" y="8" width="4" height="8" rx="1" fill="#3f51b5" />
+            </svg>
+          )}
         </Box>
-        <Typography gutterBottom variant="h5" component="h2">
+        
+        {/* Title with fixed height to ensure alignment */}
+        <Typography 
+          variant="h5" 
+          component="h3" 
+          align="center" 
+          gutterBottom
+          sx={{ 
+            fontWeight: 'bold',
+            minHeight: '64px', // Ensure consistent title height
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
           {title}
         </Typography>
-        <Typography variant="body1" color="text.secondary">
+        
+        {/* Description with equal height */}
+        <Typography 
+          variant="body1" 
+          color="text.secondary" 
+          align="center"
+          sx={{ 
+            lineHeight: 1.6,
+            flexGrow: 1, // Take up remaining space
+          }}
+        >
           {description}
         </Typography>
-      </CardContent>
-    </Card>
+      </Box>
+    </Paper>
   );
 };
 
-// Testimonial component
-const Testimonial = ({ quote, author, role, company, avatar }) => {
+// Individual testimonial card component with proper styling
+const TestimonialCard = ({ quote, author, role, company, avatar }) => {
+  const theme = useTheme();
+  
   return (
-    <Card 
+    <Paper 
       sx={{ 
-        height: '100%', 
-        display: 'flex', 
+        display: 'flex',
         flexDirection: 'column',
-        borderRadius: 2,
+        height: '100%',
+        width: '100%',
+        borderRadius: 3,
+        boxShadow: 2,
+        transition: 'transform 0.3s, box-shadow 0.3s',
+        '&:hover': {
+          transform: 'translateY(-5px)',
+          boxShadow: 4,
+        },
+        overflow: 'hidden',
       }}
-      elevation={1}
     >
-      <CardContent sx={{ flexGrow: 1, p: 3 }}>
-        <Typography 
-          variant="body1" 
-          gutterBottom 
-          sx={{ 
-            fontStyle: 'italic',
-            mb: 2,
-            position: 'relative',
-            '&:before': {
-              content: '"""',
-              fontSize: '2rem',
+      <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
+        {/* Quote */}
+        <Box sx={{ position: 'relative', mb: 4, flexGrow: 1 }}>
+          {/* Quote icon */}
+          <Typography
+            component="span"
+            sx={{
+              fontSize: '3rem',
+              fontFamily: 'Georgia, serif',
+              color: theme.palette.primary.light,
+              opacity: 0.2,
               position: 'absolute',
-              left: -15,
-              top: -10,
-              opacity: 0.3,
-            },
-            '&:after': {
-              content: '"""',
-              fontSize: '2rem',
+              top: -20,
+              left: -10,
+              lineHeight: 1,
+            }}
+          >
+            "
+          </Typography>
+          
+          {/* Quote text */}
+          <Typography 
+            variant="body1" 
+            sx={{ 
+              fontStyle: 'italic',
+              position: 'relative', 
+              zIndex: 1,
+              pl: 1,
+            }}
+          >
+            {quote}
+          </Typography>
+          
+          {/* Closing quote */}
+          <Typography
+            component="span"
+            sx={{
+              fontSize: '3rem',
+              fontFamily: 'Georgia, serif',
+              color: theme.palette.primary.light,
+              opacity: 0.2,
               position: 'absolute',
-              right: -15,
-              bottom: -30,
-              opacity: 0.3,
-            },
-          }}
-        >
-          {quote}
-        </Typography>
-        <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
-          <Avatar src={avatar} alt={author} sx={{ mr: 2 }} />
+              bottom: -40,
+              right: -10,
+              lineHeight: 1,
+            }}
+          >
+            "
+          </Typography>
+        </Box>
+        
+        <Divider sx={{ mt: 'auto', mb: 2 }} />
+        
+        {/* Author info */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Avatar 
+            src={avatar} 
+            alt={author}
+            sx={{ 
+              width: 50, 
+              height: 50, 
+              mr: 2,
+              border: '2px solid',
+              borderColor: 'primary.main',
+            }}
+          />
           <Box>
-            <Typography variant="subtitle1" component="p">
+            <Typography variant="subtitle1" fontWeight="bold">
               {author}
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -192,8 +304,8 @@ const Testimonial = ({ quote, author, role, company, avatar }) => {
             </Typography>
           </Box>
         </Box>
-      </CardContent>
-    </Card>
+      </Box>
+    </Paper>
   );
 };
 
@@ -203,44 +315,47 @@ const LandingPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
+  // References for scroll animations
+  const heroRef = useRef(null);
+  
   // Typed text options
   const typedTexts = [
-    "Collaborate on tasks",
-    "Chat in real-time",
-    "Host video meetings",
-    "Share files securely",
-    "Manage projects efficiently"
+    "collaborate on tasks",
+    "chat in real-time",
+    "host video meetings",
+    "share files securely",
+    "manage projects efficiently"
   ];
   
   // Features data
   const features = [
     {
-      icon: <ChatIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'chat',
       title: "Real-time Chat",
       description: "Communicate with your team instantly. Send messages, share files, and organize conversations by channels."
     },
     {
-      icon: <VideoCallIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'video',
       title: "Video Conferencing",
       description: "Host virtual meetings with screen sharing, chat, and recording capabilities to enhance remote collaboration."
     },
     {
-      icon: <TaskIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'task',
       title: "Task Management",
       description: "Create, assign, and track tasks with customizable Kanban boards. Set due dates, priorities, and monitor progress."
     },
     {
-      icon: <PeopleIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'workspace',
       title: "Team Workspaces",
       description: "Organize your work by teams and projects. Control access and keep everything in one secure location."
     },
     {
-      icon: <SecurityIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'security',
       title: "Advanced Security",
       description: "End-to-end encryption and role-based permissions ensure your data stays private and secure."
     },
     {
-      icon: <SpeedIcon sx={{ fontSize: 60, color: 'primary.main' }} />,
+      icon: 'ai',
       title: "AI-Powered Assistant",
       description: "Boost productivity with AI that summarizes discussions, schedules meetings, and automates routine tasks."
     }
@@ -361,9 +476,12 @@ const LandingPage = () => {
         <Toolbar sx={{ justifyContent: 'space-between' }}>
           {/* Logo */}
           <Box 
+            component="a"
+            href="/"
             sx={{ 
               display: 'flex', 
               alignItems: 'center',
+              textDecoration: 'none'
             }}
           >
             <Typography 
@@ -409,6 +527,7 @@ const LandingPage = () => {
                   variant="contained" 
                   color="primary"
                   onClick={handleSignup}
+                  sx={{ borderRadius: 1 }}
                 >
                   Sign Up Free
                 </Button>
@@ -483,13 +602,16 @@ const LandingPage = () => {
       
       {/* Hero Section */}
       <Box 
+        id="home"
+        ref={heroRef}
         sx={{
           bgcolor: 'background.paper',
-          pt: { xs: 6, md: 12 },
-          pb: { xs: 8, md: 16 },
+          pt: { xs: 8, md: 12 },
+          pb: { xs: 10, md: 16 },
           position: 'relative',
           overflow: 'hidden',
         }}
+        className="hero-section"
       >
         {/* Background Pattern */}
         <Box 
@@ -530,10 +652,12 @@ const LandingPage = () => {
         >
           {/* Hero Text Content */}
           <Box 
+            className="hero-content"
             sx={{ 
-              maxWidth: { xs: '100%', md: '55%' }, 
+              maxWidth: { xs: '100%', md: '50%' }, 
               textAlign: { xs: 'center', md: 'left' },
-              mb: { xs: 4, md: 0 }, 
+              mb: { xs: 6, md: 0 }, 
+              pr: { md: 4 },
             }}
           >
             <Typography 
@@ -545,12 +669,12 @@ const LandingPage = () => {
                 fontSize: { xs: '2.5rem', md: '3.5rem' } 
               }}
             >
-              One platform for 
+              One platform for
               <br />
-              <Box component="span" sx={{ display: { xs: 'none', md: 'inline' } }}>
+              <Box sx={{ display: { xs: 'none', md: 'inline-block' }, mt: 1 }}>
                 <TypedText texts={typedTexts} />
               </Box>
-              <Box component="span" sx={{ display: { xs: 'inline', md: 'none' } }}>
+              <Box sx={{ display: { xs: 'inline-block', md: 'none' }, mt: 1 }}>
                 <TypedText texts={typedTexts} />
               </Box>
             </Typography>
@@ -559,7 +683,7 @@ const LandingPage = () => {
               variant="h6" 
               color="text.secondary" 
               paragraph
-              sx={{ mb: 4 }}
+              sx={{ mb: 4, maxWidth: '90%', mx: { xs: 'auto', md: 0 } }}
             >
               CollabHub brings your team's communication, tasks, and meetings into one seamless platform.
               Streamlined collaboration and AI-powered productivity in a secure workspace.
@@ -581,7 +705,7 @@ const LandingPage = () => {
                 sx={{ 
                   py: 1.5, 
                   px: 4, 
-                  borderRadius: 2,
+                  borderRadius: 1,
                   fontWeight: 'bold',
                 }}
               >
@@ -594,7 +718,7 @@ const LandingPage = () => {
                 sx={{ 
                   py: 1.5, 
                   px: 4, 
-                  borderRadius: 2,
+                  borderRadius: 1,
                 }}
               >
                 View Demo
@@ -604,44 +728,85 @@ const LandingPage = () => {
           
           {/* Hero Image */}
           <Box 
+            className="hero-image"
             sx={{ 
-              width: { xs: '100%', md: '45%' }, 
+              width: { xs: '100%', md: '50%' }, 
               position: 'relative',
+              display: 'flex',
+              justifyContent: 'center'
             }}
           >
+            {/* Main hero image */}
             <Box
               component="img"
-              src="/app-screenshot.png"
+              src="https://cdn.dribbble.com/users/2493316/screenshots/15487226/media/711a56ffe4bf8c4b2d450ee778d5cb55.png"
               alt="CollabHub Dashboard"
               sx={{
                 width: '100%',
-                maxWidth: 600,
                 height: 'auto',
                 borderRadius: 4,
                 boxShadow: theme.shadows[10],
-                transform: 'perspective(1000px) rotateY(-10deg)',
+                transform: 'perspective(1000px) rotateY(-5deg)',
                 transition: 'all 0.3s ease-in-out',
                 '&:hover': {
-                  transform: 'perspective(1000px) rotateY(-5deg) translateY(-10px)',
+                  transform: 'perspective(1000px) rotateY(-2deg) translateY(-10px)',
                   boxShadow: theme.shadows[15],
                 },
               }}
             />
-            {/* Placeholder if image is not available */}
-            <Box 
-              sx={{ 
-                display: 'none', // Change to 'flex' if image is not available
-                width: '100%',
-                height: { xs: 250, md: 400 },
-                bgcolor: 'rgba(0, 0, 0, 0.05)',
-                borderRadius: 4,
+            
+            {/* Floating elements for added visual interest */}
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '10%',
+                right: '-5%',
+                width: { xs: 60, md: 80 },
+                height: { xs: 60, md: 80 },
+                borderRadius: '16px',
+                backgroundColor: 'primary.light',
+                opacity: 0.9,
+                boxShadow: theme.shadows[6],
+                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                color: 'white',
+                transform: 'rotate(10deg)',
+                animation: 'float 6s ease-in-out infinite',
+                zIndex: 2,
               }}
             >
-              <Typography variant="h6" color="text.secondary">
-                App Screenshot
-              </Typography>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="2" y="4" width="20" height="16" rx="2" fill="white" fillOpacity="0.8" />
+                <rect x="6" y="8" width="12" height="2" rx="1" fill="white" />
+                <rect x="6" y="12" width="12" height="2" rx="1" fill="white" />
+                <rect x="6" y="16" width="6" height="2" rx="1" fill="white" />
+              </svg>
+            </Box>
+            
+            <Box
+              sx={{
+                position: 'absolute',
+                bottom: '15%',
+                left: '-5%',
+                width: { xs: 50, md: 70 },
+                height: { xs: 50, md: 70 },
+                borderRadius: '50%',
+                backgroundColor: 'secondary.main',
+                opacity: 0.9,
+                boxShadow: theme.shadows[6],
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                animation: 'float 8s ease-in-out infinite 1s',
+                zIndex: 2,
+              }}
+            >
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" fill="white" fillOpacity="0.5" />
+                <path d="M16 12L10 16V8L16 12Z" fill="white" />
+              </svg>
             </Box>
           </Box>
         </Container>
@@ -651,7 +816,7 @@ const LandingPage = () => {
       <Box 
         id="features" 
         sx={{ 
-          py: { xs: 6, md: 10 },
+          py: { xs: 8, md: 12 },
           bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.02)',
         }}
       >
@@ -674,9 +839,23 @@ const LandingPage = () => {
             </Typography>
           </Box>
           
+          {/* First row - 3 features */}
+          <Grid container spacing={4} sx={{ mb: 4 }}>
+            {features.slice(0, 3).map((feature, index) => (
+              <Grid item xs={12} md={4} key={index}>
+                <FeatureCard 
+                  icon={feature.icon}
+                  title={feature.title}
+                  description={feature.description}
+                />
+              </Grid>
+            ))}
+          </Grid>
+          
+          {/* Second row - 3 features */}
           <Grid container spacing={4}>
-            {features.map((feature, index) => (
-              <Grid item xs={12} sm={6} md={4} key={index}>
+            {features.slice(3, 6).map((feature, index) => (
+              <Grid item xs={12} md={4} key={index + 3}>
                 <FeatureCard 
                   icon={feature.icon}
                   title={feature.title}
@@ -692,7 +871,7 @@ const LandingPage = () => {
       <Box 
         id="testimonials" 
         sx={{ 
-          py: { xs: 6, md: 10 },
+          py: { xs: 8, md: 12 },
           bgcolor: 'background.paper',
         }}
       >
@@ -715,10 +894,10 @@ const LandingPage = () => {
             </Typography>
           </Box>
           
-          <Grid container spacing={4}>
+          <Grid container spacing={4} alignItems="stretch">
             {testimonials.map((testimonial, index) => (
-              <Grid item xs={12} md={4} key={index}>
-                <Testimonial 
+              <Grid item xs={12} md={4} key={index} sx={{ display: 'flex' }}>
+                <TestimonialCard 
                   quote={testimonial.quote}
                   author={testimonial.author}
                   role={testimonial.role}
@@ -735,7 +914,7 @@ const LandingPage = () => {
       <Box 
         id="pricing" 
         sx={{ 
-          py: { xs: 6, md: 10 },
+          py: { xs: 8, md: 12 },
           bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.1)' : 'rgba(0, 0, 0, 0.02)',
         }}
       >
@@ -772,6 +951,7 @@ const LandingPage = () => {
                     zIndex: pkg.popular ? 1 : 0,
                     boxShadow: pkg.popular ? theme.shadows[10] : theme.shadows[1],
                     transition: 'all 0.3s ease-in-out',
+                    borderRadius: 2,
                     '&:hover': {
                       transform: pkg.popular ? 'scale(1.08)' : 'scale(1.03)',
                       boxShadow: theme.shadows[10],
@@ -859,7 +1039,7 @@ const LandingPage = () => {
                       onClick={handleSignup}
                       sx={{ 
                         py: 1.5,
-                        borderRadius: 2,
+                        borderRadius: 1,
                       }}
                     >
                       {pkg.cta}
@@ -940,7 +1120,7 @@ const LandingPage = () => {
               sx={{ 
                 py: 1.5, 
                 px: 4, 
-                borderRadius: 2,
+                borderRadius: 1,
                 fontWeight: 'bold',
                 bgcolor: 'white',
                 color: 'primary.main',
@@ -992,7 +1172,7 @@ const LandingPage = () => {
             </Grid>
             
             <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
                 Product
               </Typography>
               <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
@@ -1007,7 +1187,7 @@ const LandingPage = () => {
             </Grid>
             
             <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
                 Resources
               </Typography>
               <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
@@ -1022,7 +1202,7 @@ const LandingPage = () => {
             </Grid>
             
             <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
                 Company
               </Typography>
               <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
@@ -1037,7 +1217,7 @@ const LandingPage = () => {
             </Grid>
             
             <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom>
+              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
                 Support
               </Typography>
               <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>

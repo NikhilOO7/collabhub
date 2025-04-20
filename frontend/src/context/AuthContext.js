@@ -445,16 +445,22 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  // Logout function
   const logout = async () => {
-    // Clear token and state
-    localStorage.removeItem('token');
-    setUser(null);
-    setIsAuthenticated(false);
-    setSessionTimeout(null);
-    
-    // Reset Apollo store
-    await client.resetStore();
+    try {
+      // Clear token and state
+      localStorage.removeItem('token');
+      setUser(null);
+      setIsAuthenticated(false);
+      setSessionTimeout(null);
+      
+      // Reset Apollo store
+      await client.resetStore();
+      
+      // Redirect to landing page
+      window.location.href = '/';
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   // Get remembered email

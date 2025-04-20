@@ -10,6 +10,52 @@ const GlobalStyles = () => {
           '50%': { borderColor: theme.palette.primary.main },
         },
         
+        // Floating animation for hero elements
+        '@keyframes float': {
+          '0%': {
+            transform: 'translateY(0px) rotate(10deg)',
+          },
+          '50%': {
+            transform: 'translateY(-10px) rotate(10deg)',
+          },
+          '100%': {
+            transform: 'translateY(0px) rotate(10deg)',
+          },
+        },
+        
+        // Pulse animation for CTA buttons
+        '@keyframes pulse': {
+          '0%': {
+            boxShadow: '0 0 0 0 rgba(63, 81, 181, 0.4)',
+          },
+          '70%': {
+            boxShadow: '0 0 0 10px rgba(63, 81, 181, 0)',
+          },
+          '100%': {
+            boxShadow: '0 0 0 0 rgba(63, 81, 181, 0)',
+          },
+        },
+        
+        // Fade in animation for content sections
+        '@keyframes fadeIn': {
+          from: {
+            opacity: 0,
+            transform: 'translateY(20px)',
+          },
+          to: {
+            opacity: 1,
+            transform: 'translateY(0)',
+          },
+        },
+        
+        // Apply fadeIn animation to sections as they come into view
+        '.hero-content': {
+          animation: 'fadeIn 0.8s ease-out forwards',
+        },
+        '.hero-image': {
+          animation: 'fadeIn 1.2s ease-out forwards',
+        },
+        
         // Smooth scrolling for entire page
         'html': {
           scrollBehavior: 'smooth',
@@ -58,8 +104,18 @@ const GlobalStyles = () => {
         },
         
         // Card hover effects
-        '.MuiCard-root': {
-          transition: 'transform 0.3s, box-shadow 0.3s',
+        '.MuiCard-root, .MuiPaper-root': {
+          transition: 'transform 0.3s ease, box-shadow 0.3s ease',
+        },
+        
+        // Animation for CTA buttons
+        '.cta-button': {
+          animation: 'pulse 2s infinite',
+        },
+        
+        // Improve section transitions
+        '.section': {
+          transition: 'background-color 0.5s ease',
         },
       })}
     />

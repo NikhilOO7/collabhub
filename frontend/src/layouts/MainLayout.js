@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Box, CssBaseline, useMediaQuery } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import AppBar from '../components/common/AppBar';
+import { Box, CssBaseline, useMediaQuery, useTheme } from '@mui/material';
+import Header from '../components/common/Header';
 import Sidebar from '../components/common/Sidebar';
 import { WorkspaceProvider } from '../context/WorkspaceContext';
 
@@ -25,8 +24,8 @@ const MainLayout = ({ children }) => {
       <Box sx={{ display: 'flex', height: '100vh' }}>
         <CssBaseline />
         
-        {/* App Bar */}
-        <AppBar onDrawerToggle={handleDrawerToggle} />
+        {/* Header with App Bar */}
+        <Header onDrawerToggle={handleDrawerToggle} />
         
         {/* Sidebar */}
         <Sidebar
