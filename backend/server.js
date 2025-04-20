@@ -1,13 +1,12 @@
 const express = require('express');
 const http = require('http');
 const { ApolloServer } = require('apollo-server-express');
-const { execute, subscribe } = require('graphql');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const { connectDB } = require('./config/db');
 const typeDefs = require('./graphql/schema');
 const resolvers = require('./graphql/resolvers');
-const auth = require('./middleware/auth');
+const { createContext } = require('./middleware/auth');
 const setupSocket = require('./socket');
 
 // Load environment variables
@@ -30,15 +29,22 @@ connectDB();
 const apolloServer = new ApolloServer({
   typeDefs,
   resolvers,
-  context: ({ req }) => {
-    // Get the user token from the headers
-    const token = req.headers.authorization || '';
+  context: createContext,
+  formatError: (error) => {
+    // Log server errors but don't expose internal details to clients
+    if (error.originalError) {
+      console.error(error);
+    }
     
-    // Try to retrieve a user with the token
-    const user = auth.getUserFromToken(token);
-    
-    // Add the user to the context
-    return { user };
+    // Return a more user-friendly error message
+    return {
+      message: error.message,
+      locations: error.locations,
+      path: error.path,
+      extensions: {
+        code: error.extensions?.code || 'INTERNAL_SERVER_ERROR',
+      }
+    };
   },
 });
 
@@ -58,4 +64,7 @@ async function startServer() {
   });
 }
 
-startServer();
+startServer().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

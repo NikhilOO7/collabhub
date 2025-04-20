@@ -8,6 +8,9 @@ import theme from './theme';
 import { ApolloProvider } from '@apollo/client';
 import { client } from './apollo/client';
 import { AuthProvider } from './context/AuthContext';
+import { SocketProvider } from './context/SocketContext';
+import { WorkspaceProvider } from './context/WorkspaceContext';
+import GlobalStyles from './GlobalStyles';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
@@ -15,9 +18,14 @@ root.render(
     <ApolloProvider client={client}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
+        <GlobalStyles />
         <BrowserRouter>
           <AuthProvider>
-            <App />
+            <SocketProvider>
+              <WorkspaceProvider>
+                <App />
+              </WorkspaceProvider>
+            </SocketProvider>
           </AuthProvider>
         </BrowserRouter>
       </ThemeProvider>

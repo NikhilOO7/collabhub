@@ -1,28 +1,50 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 
-// Get user from token
+// Extract user ID from token
 const getUserFromToken = (token) => {
   if (!token || !token.startsWith('Bearer ')) {
     return null;
   }
   
   try {
-    // Verify token
-    const decoded = jwt.verify(
-      token.replace('Bearer ', ''),
-      process.env.JWT_SECRET
-    );
+    // Extract the actual token
+    const tokenString = token.replace('Bearer ', '');
     
+    // Verify token
+    const decoded = jwt.verify(tokenString, process.env.JWT_SECRET);
+    
+    // Return user ID and other claims
     return decoded;
   } catch (err) {
+    console.error('Token verification error:', err.message);
     return null;
   }
 };
 
-// Authentication middleware
+// Context creator function for Apollo Server
+const createContext = async ({ req }) => {
+  // Get the token from the request headers
+  const token = req.headers.authorization || '';
+  
+  // Validate token and get user data
+  const userInfo = getUserFromToken(token);
+  
+  // Only include minimal necessary user info in context
+  if (userInfo && userInfo._id) {
+    return { 
+      user: userInfo,
+      // Don't include the actual User model instance in the context
+      // to avoid query execution issues
+    };
+  }
+  
+  return { user: null };
+};
+
+// Express middleware for protected routes
 const authenticate = async (req, res, next) => {
-  const token = req.header('Authorization');
+  const token = req.headers.authorization;
   
   if (!token || !token.startsWith('Bearer ')) {
     return res.status(401).json({ message: 'No token, authorization denied' });
@@ -30,12 +52,10 @@ const authenticate = async (req, res, next) => {
   
   try {
     // Verify token
-    const decoded = jwt.verify(
-      token.replace('Bearer ', ''),
-      process.env.JWT_SECRET
-    );
+    const tokenString = token.replace('Bearer ', '');
+    const decoded = jwt.verify(tokenString, process.env.JWT_SECRET);
     
-    // Add user to request
+    // Add minimal user info to request
     req.user = decoded;
     
     next();
@@ -54,6 +74,7 @@ const isAuthenticated = (user) => {
 
 module.exports = {
   getUserFromToken,
+  createContext,
   authenticate,
   isAuthenticated,
 };

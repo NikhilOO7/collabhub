@@ -1,5 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { useMutation, useQuery, gql } from '@apollo/client';
+import { useMutation, useQuery, useApolloClient, gql } from '@apollo/client';
 
 // GraphQL queries and mutations
 const LOGIN = gql`
@@ -11,7 +11,19 @@ const LOGIN = gql`
         username
         email
         profilePicture
+        status
       }
+    }
+  }
+`;
+
+const REGISTER_USER = gql`
+  mutation RegisterUser($input: RegisterInput!) {
+    registerUser(input: $input) {
+      _id
+      username
+      email
+      profilePicture
     }
   }
 `;
@@ -23,7 +35,26 @@ const GET_CURRENT_USER = gql`
       username
       email
       profilePicture
+      status
     }
+  }
+`;
+
+const UPDATE_PROFILE = gql`
+  mutation UpdateUserProfile($profilePicture: String, $status: String) {
+    updateUserProfile(profilePicture: $profilePicture, status: $status) {
+      _id
+      username
+      email
+      profilePicture
+      status
+    }
+  }
+`;
+
+const UPDATE_PASSWORD = gql`
+  mutation UpdateUserPassword($currentPassword: String!, $newPassword: String!) {
+    updateUserPassword(currentPassword: $currentPassword, newPassword: $newPassword)
   }
 `;
 
@@ -33,8 +64,10 @@ const AuthContext = createContext();
 // Auth provider component
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('token'));
-  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lastActivity, setLastActivity] = useState(Date.now());
+  const [sessionTimeout, setSessionTimeout] = useState(null);
   const [mediaPermissions, setMediaPermissions] = useState({
     audio: false,
     video: false,
@@ -44,31 +77,128 @@ export const AuthProvider = ({ children }) => {
     audioOutput: localStorage.getItem('preferredAudioOutput'),
     videoInput: localStorage.getItem('preferredVideoInput'),
   });
+  const client = useApolloClient();
 
   // Login mutation
-  const [loginMutation] = useMutation(LOGIN);
+  const [loginMutation, { loading: loginLoading }] = useMutation(LOGIN);
 
-  // Get current user query
-  const { data: userData, loading: userLoading } = useQuery(GET_CURRENT_USER, {
-    skip: !token,
+  // Register mutation
+  const [registerMutation, { loading: registerLoading }] = useMutation(REGISTER_USER);
+
+  // Update profile mutation
+  const [updateProfileMutation] = useMutation(UPDATE_PROFILE);
+
+  // Update password mutation
+  const [updatePasswordMutation] = useMutation(UPDATE_PASSWORD);
+
+  // Get current user query with proper error handling
+  const { data: userData, loading: userLoading, error: userError } = useQuery(GET_CURRENT_USER, {
+    skip: !localStorage.getItem('token'),
+    fetchPolicy: 'network-only',
+    onError: (error) => {
+      console.error('Error fetching current user:', error);
+      // If token is invalid, clear it
+      localStorage.removeItem('token');
+      setUser(null);
+      setIsAuthenticated(false);
+      setIsLoading(false);
+    }
   });
 
-  // Set token to localStorage and Apollo client headers
+  // Update authentication state when userData changes
   useEffect(() => {
-    if (token) {
-      localStorage.setItem('token', token);
-    } else {
-      localStorage.removeItem('token');
+    if (!userLoading) {
+      if (userData && userData.me) {
+        setUser(userData.me);
+        setIsAuthenticated(true);
+        initializeSessionTimeout();
+      } else {
+        // Clear token if user data is not available
+        if (localStorage.getItem('token') && userError) {
+          localStorage.removeItem('token');
+        }
+        setUser(null);
+        setIsAuthenticated(false);
+      }
+      setIsLoading(false);
     }
-  }, [token]);
+  }, [userData, userLoading, userError]);
 
-  // Update user when userData changes
+  // Session timeout management
   useEffect(() => {
-    if (!userLoading && userData?.me) {
-      setUser(userData.me);
+    // Track user activity
+    const handleActivity = () => {
+      setLastActivity(Date.now());
+    };
+
+    window.addEventListener('mousemove', handleActivity);
+    window.addEventListener('keydown', handleActivity);
+    window.addEventListener('click', handleActivity);
+    window.addEventListener('touchstart', handleActivity);
+
+    return () => {
+      window.removeEventListener('mousemove', handleActivity);
+      window.removeEventListener('keydown', handleActivity);
+      window.removeEventListener('click', handleActivity);
+      window.removeEventListener('touchstart', handleActivity);
+    };
+  }, []);
+
+  // Check for inactivity
+  useEffect(() => {
+    if (isAuthenticated) {
+      const checkInactivity = setInterval(() => {
+        const now = Date.now();
+        const inactiveTime = now - lastActivity;
+        
+        // If inactive for more than 30 minutes, log out
+        if (inactiveTime > 30 * 60 * 1000) {
+          logout();
+          clearInterval(checkInactivity);
+        } else if (inactiveTime > 25 * 60 * 1000 && !sessionTimeout) {
+          // Show timeout warning at 25 minutes
+          setSessionTimeout({
+            expiresAt: lastActivity + 30 * 60 * 1000,
+            timeLeft: 5 * 60 * 1000,
+          });
+        }
+      }, 60 * 1000); // Check every minute
+
+      return () => clearInterval(checkInactivity);
     }
-    setLoading(userLoading);
-  }, [userData, userLoading]);
+  }, [isAuthenticated, lastActivity, sessionTimeout]);
+
+  // Update session timeout countdown
+  useEffect(() => {
+    if (sessionTimeout) {
+      const updateCountdown = setInterval(() => {
+        const timeLeft = sessionTimeout.expiresAt - Date.now();
+        
+        if (timeLeft <= 0) {
+          clearInterval(updateCountdown);
+          setSessionTimeout(null);
+        } else {
+          setSessionTimeout(prev => ({
+            ...prev,
+            timeLeft,
+          }));
+        }
+      }, 1000);
+
+      return () => clearInterval(updateCountdown);
+    }
+  }, [sessionTimeout]);
+
+  // Initialize session timeout
+  const initializeSessionTimeout = () => {
+    setLastActivity(Date.now());
+    setSessionTimeout(null);
+  };
+
+  // Extend session
+  const extendSession = () => {
+    initializeSessionTimeout();
+  };
 
   // Request media permissions
   const requestMediaPermissions = async () => {
@@ -86,8 +216,8 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       console.error('Media permission error:', error);
       setMediaPermissions({
-        audio: false,
-        video: false,
+        audio: error.name === 'NotAllowedError' ? false : error.constraints?.audio || false,
+        video: error.name === 'NotAllowedError' ? false : error.constraints?.video || false,
       });
       return false;
     }
@@ -119,39 +249,242 @@ export const AuthProvider = ({ children }) => {
     if (settings.videoInput) localStorage.setItem('preferredVideoInput', settings.videoInput);
   };
 
+  // Generate a secure password
+  const generateSecurePassword = () => {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_=+';
+    const length = 12;
+    let password = '';
+    
+    // Ensure at least one character from each category
+    password += chars.substring(0, 26).charAt(Math.floor(Math.random() * 26)); // lowercase
+    password += chars.substring(26, 52).charAt(Math.floor(Math.random() * 26)); // uppercase
+    password += chars.substring(52, 62).charAt(Math.floor(Math.random() * 10)); // number
+    password += chars.substring(62).charAt(Math.floor(Math.random() * (chars.length - 62))); // special
+    
+    // Fill the rest randomly
+    for (let i = 4; i < length; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    
+    // Shuffle the password
+    return password.split('').sort(() => 0.5 - Math.random()).join('');
+  };
+
+  // Check password strength
+  const checkPasswordStrength = (password) => {
+    if (!password) return { score: 0, feedback: 'Password is required' };
+    
+    let score = 0;
+    const feedback = [];
+    
+    // Length check
+    if (password.length < 8) {
+      feedback.push('Password should be at least 8 characters long');
+    } else {
+      score += password.length > 12 ? 2 : 1;
+    }
+    
+    // Character variety checks
+    if (/[a-z]/.test(password)) score += 1;
+    else feedback.push('Include lowercase letters');
+    
+    if (/[A-Z]/.test(password)) score += 1;
+    else feedback.push('Include uppercase letters');
+    
+    if (/\d/.test(password)) score += 1;
+    else feedback.push('Include numbers');
+    
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) score += 1;
+    else feedback.push('Include special characters');
+    
+    // Repetition check
+    if (/(.)\1{2,}/.test(password)) {
+      score -= 1;
+      feedback.push('Avoid repeated characters');
+    }
+    
+    // Common patterns check
+    const commonPatterns = ['123', 'abc', 'qwerty', 'password', 'admin'];
+    if (commonPatterns.some(pattern => password.toLowerCase().includes(pattern))) {
+      score -= 1;
+      feedback.push('Avoid common patterns');
+    }
+    
+    return {
+      score: Math.max(0, Math.min(5, score)),
+      feedback: feedback.join(', ') || 'Password is strong',
+    };
+  };
+
   // Login function
-  const login = async (email, password) => {
+  const login = async (email, password, rememberMe = false) => {
     try {
       const { data } = await loginMutation({
         variables: { email, password },
       });
-      setToken(data.login.token);
+      
+      // Save token and user data
+      const token = data.login.token;
+      localStorage.setItem('token', token);
+      
+      // Save login credentials if rememberMe is true
+      if (rememberMe) {
+        localStorage.setItem('rememberedEmail', email);
+      } else {
+        localStorage.removeItem('rememberedEmail');
+      }
+      
       setUser(data.login.user);
+      setIsAuthenticated(true);
+      initializeSessionTimeout();
+      
       return { success: true };
     } catch (error) {
-      return { success: false, error: error.message };
+      console.error('Login error:', error);
+      
+      // Provide a more user-friendly error message
+      let errorMessage = 'Login failed. Please check your credentials.';
+      
+      if (error.message.includes('not found')) {
+        errorMessage = 'Account not found. Please check your email or sign up.';
+      } else if (error.message.includes('incorrect')) {
+        errorMessage = 'Incorrect password. Please try again.';
+      }
+      
+      return { 
+        success: false,
+        error: errorMessage
+      };
+    }
+  };
+
+  // Register function
+  const register = async (username, email, password) => {
+    try {
+      const { data } = await registerMutation({
+        variables: {
+          input: {
+            username,
+            email,
+            password,
+          },
+        },
+      });
+      
+      return { 
+        success: true,
+        user: data.registerUser
+      };
+    } catch (error) {
+      console.error('Registration error:', error);
+      
+      // Provide a more user-friendly error message
+      let errorMessage = 'Registration failed. Please try again.';
+      
+      if (error.message.includes('already exists')) {
+        if (error.message.includes('username')) {
+          errorMessage = 'Username is already taken. Please choose another one.';
+        } else if (error.message.includes('email')) {
+          errorMessage = 'Email is already registered. Please use another email or login.';
+        }
+      }
+      
+      return { 
+        success: false,
+        error: errorMessage
+      };
+    }
+  };
+  
+  // Update profile function
+  const updateProfile = async (profileData) => {
+    try {
+      const { data } = await updateProfileMutation({
+        variables: profileData,
+      });
+      
+      setUser(data.updateUserProfile);
+      
+      return { 
+        success: true,
+        user: data.updateUserProfile
+      };
+    } catch (error) {
+      console.error('Update profile error:', error);
+      return { 
+        success: false,
+        error: error.message || 'Failed to update profile.'
+      };
+    }
+  };
+  
+  // Update password function
+  const updatePassword = async (currentPassword, newPassword) => {
+    try {
+      const { data } = await updatePasswordMutation({
+        variables: { currentPassword, newPassword },
+      });
+      
+      return { 
+        success: data.updateUserPassword,
+      };
+    } catch (error) {
+      console.error('Update password error:', error);
+      
+      // Provide a more user-friendly error message
+      let errorMessage = 'Failed to update password.';
+      
+      if (error.message.includes('incorrect')) {
+        errorMessage = 'Current password is incorrect. Please try again.';
+      }
+      
+      return { 
+        success: false,
+        error: errorMessage
+      };
     }
   };
 
   // Logout function
-  const logout = () => {
-    setToken(null);
+  const logout = async () => {
+    // Clear token and state
+    localStorage.removeItem('token');
     setUser(null);
+    setIsAuthenticated(false);
+    setSessionTimeout(null);
+    
+    // Reset Apollo store
+    await client.resetStore();
+  };
+
+  // Get remembered email
+  const getRememberedEmail = () => {
+    return localStorage.getItem('rememberedEmail') || '';
   };
 
   return (
     <AuthContext.Provider
       value={{
-        isAuthenticated: !!user,
         user,
-        loading,
-        login,
-        logout,
+        isAuthenticated,
+        isLoading,
+        loginLoading,
+        registerLoading,
+        sessionTimeout,
         mediaPermissions,
-        requestMediaPermissions,
         deviceSettings,
+        login,
+        register,
+        logout,
+        extendSession,
+        updateProfile,
+        updatePassword,
+        requestMediaPermissions,
         updateDeviceSettings,
         getAvailableDevices,
+        generateSecurePassword,
+        checkPasswordStrength,
+        getRememberedEmail,
       }}
     >
       {children}
@@ -159,5 +492,5 @@ export const AuthProvider = ({ children }) => {
   );
 };
 
-// Custom hook to use the auth context
+// Custom hook to use auth context
 export const useAuth = () => useContext(AuthContext);
