@@ -12,6 +12,9 @@ const setupSocket = (server) => {
     },
   });
 
+  // Track active peers in rooms
+  const rooms = new Map();
+
   // Socket middleware for authentication
   io.use(async (socket, next) => {
     try {
@@ -63,6 +66,24 @@ const setupSocket = (server) => {
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.user.username}`);
       
+      // Remove user from all rooms they were in
+      rooms.forEach((peers, roomId) => {
+        if (peers.has(socket.user._id)) {
+          peers.delete(socket.user._id);
+          
+          // Notify others in the room
+          socket.to(`room:${roomId}`).emit('user-left', {
+            userId: socket.user._id,
+            username: socket.user.username,
+          });
+          
+          // Remove room if empty
+          if (peers.size === 0) {
+            rooms.delete(roomId);
+          }
+        }
+      });
+
       // Update user status to offline
       await User.findByIdAndUpdate(
         socket.user._id,
@@ -135,23 +156,46 @@ const setupSocket = (server) => {
     });
     
     // Handle joining a room (for video)
-    socket.on('join-room', (data) => {
-      const { roomId, userId } = data;
-      
+    socket.on('join-room', async ({ roomId, userId }) => {
       socket.join(`room:${roomId}`);
+      
+      // Initialize room if doesn't exist
+      if (!rooms.has(roomId)) {
+        rooms.set(roomId, new Set());
+      }
+      
+      const room = rooms.get(roomId);
+      room.add(userId);
       
       // Notify others in the room
       socket.to(`room:${roomId}`).emit('user-joined', {
         userId,
         username: socket.user.username,
+        profilePicture: socket.user.profilePicture,
       });
+      
+      // Send list of existing peers to the joining user
+      const peers = Array.from(room).filter(id => id !== userId);
+      if (peers.length > 0) {
+        socket.emit('existing-peers', {
+          peers,
+        });
+      }
     });
     
     // Handle leaving a room
-    socket.on('leave-room', (data) => {
-      const { roomId, userId } = data;
-      
+    socket.on('leave-room', ({ roomId, userId }) => {
       socket.leave(`room:${roomId}`);
+      
+      const room = rooms.get(roomId);
+      if (room) {
+        room.delete(userId);
+        
+        // Remove room if empty
+        if (room.size === 0) {
+          rooms.delete(roomId);
+        }
+      }
       
       // Notify others in the room
       socket.to(`room:${roomId}`).emit('user-left', {
@@ -161,25 +205,40 @@ const setupSocket = (server) => {
     });
     
     // Handle sending signal (WebRTC)
-    socket.on('sending-signal', (data) => {
-      const { receiverId, senderId, signal } = data;
-      
+    socket.on('sending-signal', ({ receiverId, senderId, signal }) => {
       io.to(receiverId).emit('receiving-signal', {
         userId: senderId,
         signal,
+        initiator: socket.user.username,
       });
     });
     
     // Handle returning signal (WebRTC)
-    socket.on('returning-signal', (data) => {
-      const { receiverId, senderId, signal } = data;
-      
+    socket.on('returning-signal', ({ receiverId, senderId, signal }) => {
       io.to(receiverId).emit('receiving-returned-signal', {
         userId: senderId,
         signal,
+        receiver: socket.user.username,
+      });
+    });
+
+    // Handle screen sharing
+    socket.on('start-screen-share', ({ roomId, userId }) => {
+      socket.to(`room:${roomId}`).emit('user-screen-share', {
+        userId,
+        username: socket.user.username,
+        isSharing: true,
       });
     });
     
+    socket.on('stop-screen-share', ({ roomId, userId }) => {
+      socket.to(`room:${roomId}`).emit('user-screen-share', {
+        userId,
+        username: socket.user.username,
+        isSharing: false,
+      });
+    });
+
     // Handle chat message in meeting
     socket.on('send-chat-message', (data) => {
       const { roomId, userId, message, timestamp } = data;

@@ -478,7 +478,64 @@ const VideoCall = () => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
-  
+
+  // Add peer video ref handling
+  const VideoStream = ({ peer, participant }) => {
+    const ref = useRef();
+
+    useEffect(() => {
+      if (peer) {
+        peer.on('stream', (stream) => {
+          if (ref.current) {
+            ref.current.srcObject = stream;
+          }
+        });
+      }
+    }, [peer]);
+
+    return (
+      <Paper
+        sx={{
+          backgroundColor: 'black',
+          position: 'relative',
+          paddingTop: '56.25%',
+          borderRadius: 2,
+          overflow: 'hidden',
+        }}
+      >
+        <video
+          ref={ref}
+          autoPlay
+          playsInline
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 8,
+            left: 8,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            color: 'white',
+            borderRadius: 1,
+            px: 1,
+            py: 0.5,
+          }}
+        >
+          <Typography variant="body2">
+            {participant?.username || 'Participant'}
+          </Typography>
+        </Box>
+      </Paper>
+    );
+  };
+
   if (loading || meetingLoading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -599,46 +656,7 @@ const VideoCall = () => {
             const participant = participants.find(p => p._id === userId);
             return (
               <Grid item xs={12} sm={6} md={4} lg={3} key={userId}>
-                <Paper
-                  sx={{
-                    backgroundColor: 'black',
-                    position: 'relative',
-                    paddingTop: '56.25%', // 16:9 Aspect Ratio
-                    borderRadius: 2,
-                    overflow: 'hidden',
-                  }}
-                >
-                  <video
-                    autoPlay
-                    playsInline
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      height: '100%',
-                      objectFit: 'cover',
-                    }}
-                  />
-                  <Box
-                    sx={{
-                      position: 'absolute',
-                      bottom: 8,
-                      left: 8,
-                      backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                      color: 'white',
-                      borderRadius: 1,
-                      px: 1,
-                      py: 0.5,
-                      display: 'flex',
-                      alignItems: 'center',
-                    }}
-                  >
-                    <Typography variant="body2" component="span">
-                      {participant?.username || 'Participant'}
-                    </Typography>
-                  </Box>
-                </Paper>
+                <VideoStream peer={peer} participant={participant} />
               </Grid>
             );
           })}

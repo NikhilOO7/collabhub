@@ -35,6 +35,15 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [loading, setLoading] = useState(true);
+  const [mediaPermissions, setMediaPermissions] = useState({
+    audio: false,
+    video: false,
+  });
+  const [deviceSettings, setDeviceSettings] = useState({
+    audioInput: localStorage.getItem('preferredAudioInput'),
+    audioOutput: localStorage.getItem('preferredAudioOutput'),
+    videoInput: localStorage.getItem('preferredVideoInput'),
+  });
 
   // Login mutation
   const [loginMutation] = useMutation(LOGIN);
@@ -60,6 +69,55 @@ export const AuthProvider = ({ children }) => {
     }
     setLoading(userLoading);
   }, [userData, userLoading]);
+
+  // Request media permissions
+  const requestMediaPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      
+      // Stop tracks after permission check
+      stream.getTracks().forEach(track => track.stop());
+      
+      setMediaPermissions({ audio: true, video: true });
+      return true;
+    } catch (error) {
+      console.error('Media permission error:', error);
+      setMediaPermissions({
+        audio: false,
+        video: false,
+      });
+      return false;
+    }
+  };
+
+  // Get available devices
+  const getAvailableDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return {
+        audioInputs: devices.filter(d => d.kind === 'audioinput'),
+        audioOutputs: devices.filter(d => d.kind === 'audiooutput'),
+        videoInputs: devices.filter(d => d.kind === 'videoinput'),
+      };
+    } catch (error) {
+      console.error('Error getting devices:', error);
+      return { audioInputs: [], audioOutputs: [], videoInputs: [] };
+    }
+  };
+
+  // Update device settings
+  const updateDeviceSettings = (settings) => {
+    const newSettings = { ...deviceSettings, ...settings };
+    setDeviceSettings(newSettings);
+    
+    // Save to localStorage
+    if (settings.audioInput) localStorage.setItem('preferredAudioInput', settings.audioInput);
+    if (settings.audioOutput) localStorage.setItem('preferredAudioOutput', settings.audioOutput);
+    if (settings.videoInput) localStorage.setItem('preferredVideoInput', settings.videoInput);
+  };
 
   // Login function
   const login = async (email, password) => {
@@ -89,6 +147,11 @@ export const AuthProvider = ({ children }) => {
         loading,
         login,
         logout,
+        mediaPermissions,
+        requestMediaPermissions,
+        deviceSettings,
+        updateDeviceSettings,
+        getAvailableDevices,
       }}
     >
       {children}

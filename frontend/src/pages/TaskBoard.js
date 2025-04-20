@@ -28,8 +28,8 @@ import {
   ArrowForward as ArrowForwardIcon,
   ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
-import MainLayout from './layouts/MainLayout';
-import { useAuth } from './context/AuthContext';
+import MainLayout from '../layouts/MainLayout';
+import { useAuth } from '../context/AuthContext';
 
 // GraphQL Queries and Mutations
 const GET_WORKSPACE_TASKS = gql`
