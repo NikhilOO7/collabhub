@@ -1,3 +1,4 @@
+// src/components/common/Header.js
 import React, { useState } from 'react';
 import {
   AppBar,
@@ -8,6 +9,7 @@ import {
   Avatar,
   Menu,
   MenuItem,
+  Badge,
   ListItemIcon,
   ListItemText,
   Divider,
@@ -27,8 +29,26 @@ import {
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useQuery, gql } from '@apollo/client';
 
-const Header = ({ onDrawerToggle }) => {
+// GraphQL query to get pending invitations
+const GET_PENDING_INVITATIONS = gql`
+  query GetPendingNotifications {
+    getPendingInvitations {
+      _id
+      workspaceId {
+        _id
+        name
+      }
+      invitedBy {
+        username
+      }
+      createdAt
+    }
+  }
+`;
+
+const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const theme = useTheme();
@@ -36,6 +56,14 @@ const Header = ({ onDrawerToggle }) => {
   
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState(null);
+  
+  // Get pending invitations for notification menu
+  const { data: notificationData } = useQuery(GET_PENDING_INVITATIONS, {
+    fetchPolicy: 'network-only',
+    pollInterval: 60000 // Poll every minute
+  });
+  
+  const pendingInvitations = notificationData?.getPendingInvitations || [];
   
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -60,7 +88,27 @@ const Header = ({ onDrawerToggle }) => {
   
   const handleLogout = () => {
     handleMenuClose();
+    logout();
     navigate('/logout');
+  };
+  
+  // Format date for notifications
+  const formatTimeAgo = (date) => {
+    const now = new Date();
+    const diff = now - new Date(date);
+    const minutes = Math.floor(diff / 60000);
+    
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes} min ago`;
+    
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours} hr ago`;
+    
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} days ago`;
+    
+    const months = Math.floor(days / 30);
+    return `${months} months ago`;
   };
   
   // Generate avatar color and initials
@@ -137,7 +185,9 @@ const Header = ({ onDrawerToggle }) => {
             onClick={handleNotificationsOpen}
             size="large"
           >
-            <NotificationsIcon />
+            <Badge badgeContent={notificationCount} color="error">
+              <NotificationsIcon />
+            </Badge>
           </IconButton>
         </Tooltip>
         
@@ -246,24 +296,46 @@ const Header = ({ onDrawerToggle }) => {
         <Box sx={{ p: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
           <Typography variant="subtitle1" fontWeight="bold">Notifications</Typography>
         </Box>
-        {[
-          { text: 'New message from Sarah', time: '5 min ago' },
-          { text: 'David assigned you a task', time: '1 hour ago' },
-          { text: 'Meeting starts in 10 minutes', time: '10 min ago' },
-        ].map((notification, index) => (
-          <MenuItem key={index} onClick={handleNotificationsClose}>
-            <Box sx={{ width: '100%' }}>
-              <Typography variant="body2">{notification.text}</Typography>
-              <Typography variant="caption" color="text.secondary">{notification.time}</Typography>
+        
+        {pendingInvitations.length > 0 ? (
+          <>
+            {pendingInvitations.map((invitation) => (
+              <MenuItem 
+                key={invitation._id} 
+                onClick={() => {
+                  handleNotificationsClose();
+                  navigate('/invitations');
+                }}
+              >
+                <Box sx={{ width: '100%' }}>
+                  <Typography variant="body2">
+                    <strong>{invitation.invitedBy.username}</strong> invited you to join <strong>{invitation.workspaceId.name}</strong>
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">{formatTimeAgo(invitation.createdAt)}</Typography>
+                </Box>
+              </MenuItem>
+            ))}
+            <Divider />
+            <Box sx={{ p: 1, textAlign: 'center' }}>
+              <Button 
+                color="primary" 
+                size="small" 
+                onClick={() => {
+                  navigate('/invitations');
+                  handleNotificationsClose();
+                }}
+              >
+                View all invitations
+              </Button>
             </Box>
-          </MenuItem>
-        ))}
-        <Divider />
-        <Box sx={{ p: 1, textAlign: 'center' }}>
-          <Button color="primary" size="small">
-            See all notifications
-          </Button>
-        </Box>
+          </>
+        ) : (
+          <Box sx={{ p: 3, textAlign: 'center' }}>
+            <Typography variant="body2" color="text.secondary">
+              No new notifications
+            </Typography>
+          </Box>
+        )}
       </Menu>
     </AppBar>
   );

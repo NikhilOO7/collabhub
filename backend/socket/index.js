@@ -1,7 +1,9 @@
+// socket/index.js
 const socketIO = require('socket.io');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Message = require('../models/Message');
+const Workspace = require('../models/Workspace');
 
 // Socket.io setup
 const setupSocket = (server) => {
@@ -14,6 +16,9 @@ const setupSocket = (server) => {
 
   // Track active peers in rooms
   const rooms = new Map();
+  
+  // Map of user IDs to socket IDs
+  const userSockets = new Map();
 
   // Socket middleware for authentication
   io.use(async (socket, next) => {
@@ -48,9 +53,29 @@ const setupSocket = (server) => {
     }
   });
 
+  // Helper function to get user sockets
+  const getUserSockets = (userId) => {
+    const socketIds = userSockets.get(userId) || [];
+    return socketIds.map(id => io.sockets.sockets.get(id)).filter(Boolean);
+  };
+
+  // Helper function to get user sockets by email
+  const getUserSocketsByEmail = async (email) => {
+    const user = await User.findOne({ email });
+    if (!user) return [];
+    return getUserSockets(user._id.toString());
+  };
+
   // Socket connection
   io.on('connection', (socket) => {
     console.log(`User connected: ${socket.user.username}`);
+    
+    // Add to user sockets map
+    const userId = socket.user._id.toString();
+    if (!userSockets.has(userId)) {
+      userSockets.set(userId, []);
+    }
+    userSockets.get(userId).push(socket.id);
     
     // Update user status to online
     User.findByIdAndUpdate(
@@ -65,6 +90,19 @@ const setupSocket = (server) => {
     // Handle disconnect
     socket.on('disconnect', async () => {
       console.log(`User disconnected: ${socket.user.username}`);
+      
+      // Remove from user sockets map
+      const userId = socket.user._id.toString();
+      const sockets = userSockets.get(userId) || [];
+      const index = sockets.indexOf(socket.id);
+      if (index !== -1) {
+        sockets.splice(index, 1);
+        if (sockets.length === 0) {
+          userSockets.delete(userId);
+        } else {
+          userSockets.set(userId, sockets);
+        }
+      }
       
       // Remove user from all rooms they were in
       rooms.forEach((peers, roomId) => {
@@ -84,12 +122,16 @@ const setupSocket = (server) => {
         }
       });
 
-      // Update user status to offline
-      await User.findByIdAndUpdate(
-        socket.user._id,
-        { status: 'offline' },
-        { new: true }
-      ).exec();
+      // Check if user has no more active sockets
+      const remainingSockets = userSockets.get(userId) || [];
+      if (remainingSockets.length === 0) {
+        // Update user status to offline
+        await User.findByIdAndUpdate(
+          socket.user._id,
+          { status: 'offline' },
+          { new: true }
+        ).exec();
+      }
     });
     
     // Handle chat message
@@ -249,6 +291,59 @@ const setupSocket = (server) => {
         message,
         timestamp,
       });
+    });
+    
+    // Handle invitation created
+    socket.on('invitation-created', async ({ invitation }) => {
+      try {
+        // Notify the invited user if they're online
+        const invitedUserSockets = await getUserSocketsByEmail(invitation.email);
+        
+        if (invitedUserSockets.length > 0) {
+          invitedUserSockets.forEach(socket => {
+            socket.emit('new-invitation', {
+              invitation
+            });
+          });
+        }
+      } catch (err) {
+        console.error('Error handling invitation created:', err);
+      }
+    });
+
+    // Handle access request created
+    socket.on('request-created', async ({ request, workspaceId }) => {
+      try {
+        // Find workspace admins and owner
+        const workspace = await Workspace.findById(workspaceId)
+          .populate('owner');
+        
+        // Get admin member IDs
+        const adminMemberIds = workspace.members
+          .filter(member => member.role === 'admin')
+          .map(member => member.userId.toString());
+        
+        // Get all admin IDs including owner
+        const adminIds = [
+          workspace.owner._id.toString(),
+          ...adminMemberIds
+        ];
+        
+        // Notify all admins who are online
+        adminIds.forEach(adminId => {
+          const adminSockets = getUserSockets(adminId);
+          
+          if (adminSockets.length > 0) {
+            adminSockets.forEach(socket => {
+              socket.emit('new-access-request', {
+                request
+              });
+            });
+          }
+        });
+      } catch (err) {
+        console.error('Error handling request created:', err);
+      }
     });
   });
 

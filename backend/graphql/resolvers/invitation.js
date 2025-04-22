@@ -33,9 +33,15 @@ module.exports = {
     getPendingInvitations: async (_, __, { user }) => {
       isAuthenticated(user);
       
+      // Find user
+      const userData = await User.findById(user._id);
+      if (!userData) {
+        throw new Error('User not found');
+      }
+      
       // Find invitations by email
       return await WorkspaceInvitation.find({ 
-        email: user.email,
+        email: userData.email,
         status: 'pending',
         expiresAt: { $gt: new Date() }
       })
@@ -113,7 +119,11 @@ module.exports = {
       await invitation.save();
       await invitation.populate('invitedBy');
       
-      // TODO: Send email notification (would implement with a service like SendGrid)
+      // Emit socket event for real-time notification
+      const io = req.app.get('io');
+      if (io) {
+        io.emit('invitation-created', { invitation });
+      }
       
       return invitation;
     },
@@ -132,8 +142,11 @@ module.exports = {
         throw new Error('Invalid or expired invitation');
       }
       
+      // Find user
+      const userData = await User.findById(user._id);
+      
       // Check if the invitation matches the user's email
-      if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+      if (invitation.email.toLowerCase() !== userData.email.toLowerCase()) {
         throw new Error('This invitation was sent to a different email address');
       }
       
@@ -173,8 +186,11 @@ module.exports = {
         throw new Error('Invalid invitation');
       }
       
+      // Find user
+      const userData = await User.findById(user._id);
+      
       // Check if the invitation matches the user's email
-      if (invitation.email.toLowerCase() !== user.email.toLowerCase()) {
+      if (invitation.email.toLowerCase() !== userData.email.toLowerCase()) {
         throw new Error('This invitation was sent to a different email address');
       }
       
@@ -220,5 +236,8 @@ module.exports = {
       if (parent.invitedBy._id) return parent.invitedBy;
       return await User.findById(parent.invitedBy);
     },
-  },
+    workspace: async (parent) => {
+      return await Workspace.findById(parent.workspaceId);
+    }
+  },  
 };

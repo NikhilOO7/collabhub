@@ -1,3 +1,4 @@
+// src/pages/Workspace.js (Updated)
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
@@ -18,16 +19,21 @@ import {
   DialogActions, 
   TextField, 
   CircularProgress,
-  IconButton
+  IconButton,
+  Tabs,
+  Tab
 } from '@mui/material';
 import { 
   Add as AddIcon, 
   Chat as ChatIcon, 
   Task as TaskIcon, 
-  VideoCall as VideoCallIcon 
+  VideoCall as VideoCallIcon,
+  Group as GroupIcon
 } from '@mui/icons-material';
 import MainLayout from '../layouts/MainLayout';
 import { useWorkspace } from '../context/WorkspaceContext';
+import { useAuth } from '../context/AuthContext';
+import WorkspaceMembers from '../components/workspace/WorkspaceMembers';
 
 // GraphQL Queries and Mutations
 const GET_WORKSPACE_DATA = gql`
@@ -78,7 +84,9 @@ const CREATE_MEETING = gql`
 const Workspace = () => {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { setActiveWorkspace } = useWorkspace();
+  const [activeTab, setActiveTab] = useState(0);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
   const [newChannel, setNewChannel] = useState({
@@ -109,6 +117,11 @@ const Workspace = () => {
       setActiveWorkspace(data.getWorkspace);
     }
   }, [data, setActiveWorkspace]);
+
+  // Handle tab change
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
 
   // Handle channel dialog
   const handleOpenChannelDialog = () => {
@@ -230,6 +243,12 @@ const Workspace = () => {
 
   const workspace = data?.getWorkspace;
   const channels = data?.getWorkspaceChannels || [];
+  
+  // Check user permissions
+  const isOwner = workspace?.owner?._id === user?._id;
+  const isAdmin = workspace?.members?.some(
+    (member) => member.userId === user?._id && member.role === 'admin'
+  );
 
   return (
     <MainLayout>
@@ -243,126 +262,148 @@ const Workspace = () => {
           </Typography>
         </Box>
 
-        <Grid container spacing={3}>
-          {/* Channels Section */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6">Channels</Typography>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  size="small"
-                  onClick={handleOpenChannelDialog}
-                >
-                  New Channel
-                </Button>
-              </Box>
-              <Divider sx={{ mb: 2 }} />
-              <List>
-                {channels.map((channel) => (
-                  <ListItem
-                    button
-                    key={channel._id}
-                    onClick={() => handleChannelClick(channel._id)}
-                  >
-                    <ListItemIcon>
-                      <ChatIcon />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary={`#${channel.name}`}
-                      secondary={channel.description}
-                    />
-                  </ListItem>
-                ))}
-                {channels.length === 0 && (
-                  <ListItem>
-                    <ListItemText
-                      primary="No channels yet"
-                      secondary="Create a new channel to start collaborating"
-                    />
-                  </ListItem>
-                )}
-              </List>
-            </Paper>
-          </Grid>
+        <Tabs 
+          value={activeTab} 
+          onChange={handleTabChange} 
+          sx={{ mb: 3, borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab icon={<ChatIcon />} label="Channels" />
+          <Tab icon={<TaskIcon />} label="Tools" />
+          <Tab icon={<GroupIcon />} label="Members" />
+        </Tabs>
 
-          {/* Actions Section */}
-          <Grid item xs={12} md={6}>
-            <Paper sx={{ p: 2 }}>
-              <Typography variant="h6" sx={{ mb: 2 }}>
-                Workspace Tools
-              </Typography>
-              <Divider sx={{ mb: 2 }} />
-              <Grid container spacing={2}>
-                <Grid item xs={12} sm={6}>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      textAlign: 'center',
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: 'action.hover',
-                      },
-                    }}
-                    onClick={handleTaskBoardClick}
+        {activeTab === 0 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="h6">Channels</Typography>
+                  <Button
+                    variant="contained"
+                    startIcon={<AddIcon />}
+                    size="small"
+                    onClick={handleOpenChannelDialog}
                   >
-                    <IconButton
-                      sx={{
-                        backgroundColor: 'primary.light',
-                        color: 'primary.contrastText',
-                        mb: 1,
-                      }}
+                    New Channel
+                  </Button>
+                </Box>
+                <Divider sx={{ mb: 2 }} />
+                <List>
+                  {channels.map((channel) => (
+                    <ListItem
+                      button
+                      key={channel._id}
+                      onClick={() => handleChannelClick(channel._id)}
                     >
-                      <TaskIcon />
-                    </IconButton>
-                    <Typography variant="subtitle1">Task Board</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Manage your team's tasks
-                    </Typography>
-                  </Paper>
-                </Grid>
-                <Grid item xs={12} sm={6}>
-                  <Paper
-                    sx={{
-                      p: 2,
-                      textAlign: 'center',
-                      height: '100%',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      '&:hover': {
-                        backgroundColor: 'action.hover',
-                      },
-                    }}
-                    onClick={handleOpenMeetingDialog}
-                  >
-                    <IconButton
-                      sx={{
-                        backgroundColor: 'secondary.light',
-                        color: 'secondary.contrastText',
-                        mb: 1,
-                      }}
-                    >
-                      <VideoCallIcon />
-                    </IconButton>
-                    <Typography variant="subtitle1">Video Call</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      Start a team meeting
-                    </Typography>
-                  </Paper>
-                </Grid>
-              </Grid>
-            </Paper>
+                      <ListItemIcon>
+                        <ChatIcon />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary={`#${channel.name}`}
+                        secondary={channel.description}
+                      />
+                    </ListItem>
+                  ))}
+                  {channels.length === 0 && (
+                    <ListItem>
+                      <ListItemText
+                        primary="No channels yet"
+                        secondary="Create a new channel to start collaborating"
+                      />
+                    </ListItem>
+                  )}
+                </List>
+              </Paper>
+            </Grid>
           </Grid>
-        </Grid>
+        )}
+
+        {activeTab === 1 && (
+          <Grid container spacing={3}>
+            <Grid item xs={12}>
+              <Paper sx={{ p: 2 }}>
+                <Typography variant="h6" sx={{ mb: 2 }}>
+                  Workspace Tools
+                </Typography>
+                <Divider sx={{ mb: 2 }} />
+                <Grid container spacing={2}>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
+                      onClick={handleTaskBoardClick}
+                    >
+                      <IconButton
+                        sx={{
+                          backgroundColor: 'primary.light',
+                          color: 'primary.contrastText',
+                          mb: 1,
+                        }}
+                      >
+                        <TaskIcon />
+                      </IconButton>
+                      <Typography variant="subtitle1">Task Board</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Manage your team's tasks
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
+                      onClick={handleOpenMeetingDialog}
+                    >
+                      <IconButton
+                        sx={{
+                          backgroundColor: 'secondary.light',
+                          color: 'secondary.contrastText',
+                          mb: 1,
+                        }}
+                      >
+                        <VideoCallIcon />
+                      </IconButton>
+                      <Typography variant="subtitle1">Video Call</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        Start a team meeting
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </Paper>
+            </Grid>
+          </Grid>
+        )}
+
+        {activeTab === 2 && (
+          <WorkspaceMembers 
+            workspaceId={workspaceId}
+            isOwner={isOwner}
+            isAdmin={isAdmin}
+          />
+        )}
       </Box>
 
       {/* Create Channel Dialog */}

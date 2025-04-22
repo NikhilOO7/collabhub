@@ -7,6 +7,7 @@ const taskResolvers = require('./task');
 const meetingResolvers = require('./meeting');
 const activityResolvers = require('./activity');
 const invitationResolvers = require('./invitation');
+const accessRequestResolvers = require('./accessRequest');
 
 module.exports = {
   Query: {
@@ -18,6 +19,7 @@ module.exports = {
     ...meetingResolvers.Query,
     ...activityResolvers.Query,
     ...invitationResolvers.Query,
+    ...accessRequestResolvers.Query,
   },
   
   Mutation: {
@@ -28,6 +30,7 @@ module.exports = {
     ...taskResolvers.Mutation,
     ...meetingResolvers.Mutation,
     ...invitationResolvers.Mutation,
+    ...accessRequestResolvers.Mutation,
   },
   
   Workspace: {
@@ -52,5 +55,9 @@ module.exports = {
   
   WorkspaceInvitation: {
     ...invitationResolvers.WorkspaceInvitation,
+  },
+  
+  WorkspaceAccessRequest: {
+    ...accessRequestResolvers.WorkspaceAccessRequest,
   },
 };

@@ -6,6 +6,7 @@ import { useAuth } from './context/AuthContext';
 import LandingPage from './pages/LandingPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Logout from './pages/Logout';
 import Dashboard from './pages/Dashboard';
 import Workspace from './pages/Workspace';
 import TaskBoard from './pages/TaskBoard';
@@ -13,6 +14,8 @@ import ChatRoom from './pages/ChatRoom';
 import VideoCall from './pages/VideoCall';
 import UserProfile from './pages/UserProfile';
 import NotFound from './pages/NotFound';
+import ExploreWorkspaces from './pages/ExploreWorkspaces';
+import Invitations from './pages/Invitations';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -38,6 +41,7 @@ const App = () => {
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/logout" element={<Logout />} />
       
       {/* Protected Routes */}
       <Route 
@@ -47,6 +51,24 @@ const App = () => {
             <Dashboard />
           </ProtectedRoute>
         } 
+      />
+      
+      <Route
+        path="/explore"
+        element={
+          <ProtectedRoute>
+            <ExploreWorkspaces />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/invitations"
+        element={
+          <ProtectedRoute>
+            <Invitations />
+          </ProtectedRoute>
+        }
       />
       
       <Route
@@ -72,6 +94,15 @@ const App = () => {
         element={
           <ProtectedRoute>
             <ChatRoom />
+          </ProtectedRoute>
+        }
+      />
+      
+      <Route
+        path="/workspace/:workspaceId/meetings"
+        element={
+          <ProtectedRoute>
+            <Dashboard />
           </ProtectedRoute>
         }
       />

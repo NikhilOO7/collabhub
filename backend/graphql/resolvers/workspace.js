@@ -66,6 +66,60 @@ module.exports = {
       
       return allMembers;
     },
+    searchPublicWorkspaces: async (_, { query, filter = {} }, { user }) => {
+      isAuthenticated(user);
+      
+      // Build search query
+      const searchQuery = {
+        $or: [
+          { name: { $regex: query, $options: 'i' } },
+          { description: { $regex: query, $options: 'i' } }
+        ]
+      };
+      
+      // Apply filters
+      if (filter.category) {
+        searchQuery.category = filter.category;
+      }
+      
+      if (filter.isPublic !== undefined) {
+        searchQuery.isPublic = filter.isPublic;
+      } else {
+        // Default to public workspaces only
+        searchQuery.isPublic = true;
+      }
+      
+      // Exclude workspaces where user is already a member
+      const excludeQuery = {
+        $and: [
+          { _id: { $nin: [] } } // Will be populated below
+        ]
+      };
+      
+      // Get workspaces where user is already a member
+      const userWorkspaces = await Workspace.find({
+        $or: [
+          { owner: user._id },
+          { 'members.userId': user._id }
+        ]
+      });
+      
+      // Exclude these workspaces from search results
+      excludeQuery.$and[0]._id.$nin = userWorkspaces.map(w => w._id);
+      
+      // Combine queries
+      const finalQuery = {
+        $and: [
+          searchQuery,
+          excludeQuery
+        ]
+      };
+      
+      return await Workspace.find(finalQuery)
+        .populate('owner')
+        .sort({ createdAt: -1 })
+        .limit(50); // Limit results to prevent overwhelming response
+    },
   },
   
   Mutation: {
@@ -133,6 +187,30 @@ module.exports = {
       
       await workspace.save();
       
+      return workspace;
+    },
+
+    updateWorkspaceSettings: async (_, { workspaceId, isPublic, category }, { user }) => {
+      isAuthenticated(user);
+      
+      // Find workspace
+      const workspace = await Workspace.findById(workspaceId);
+      if (!workspace) {
+        throw new Error('Workspace not found');
+      }
+      
+      // Check if user is owner
+      if (workspace.owner.toString() !== user._id.toString()) {
+        throw new Error('Only the workspace owner can update these settings');
+      }
+      
+      // Update settings
+      workspace.isPublic = isPublic;
+      if (category) {
+        workspace.category = category;
+      }
+      
+      await workspace.save();
       return workspace;
     },
     
@@ -308,6 +386,9 @@ module.exports = {
   Workspace: {
     owner: async (parent) => {
       return User.findById(parent.owner);
+    },
+    memberCount: async (parent) => {
+      return parent.members.length + 1; // +1 for the owner
     },
   },
 };

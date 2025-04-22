@@ -1,3 +1,5 @@
+// graphql/schema.js - Fixed version without syntax errors
+
 const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
@@ -35,6 +37,9 @@ const typeDefs = gql`
     description: String
     owner: User!
     members: [WorkspaceMember!]!
+    isPublic: Boolean
+    category: String
+    memberCount: Int
     createdAt: String
     updatedAt: String
   }
@@ -42,6 +47,45 @@ const typeDefs = gql`
   input WorkspaceInput {
     name: String!
     description: String
+  }
+
+  # Invitation Types
+  type WorkspaceInvitation {
+    _id: ID!
+    workspaceId: ID!
+    workspace: Workspace
+    email: String!
+    invitedBy: User!
+    status: String!
+    role: String!
+    token: String!
+    expiresAt: String!
+    createdAt: String
+  }
+
+  input WorkspaceInvitationInput {
+    workspaceId: ID!
+    email: String!
+    role: String
+  }
+
+  # Access Request Types
+  type WorkspaceAccessRequest {
+    _id: ID!
+    user: User!
+    workspaceId: ID!
+    workspace: Workspace
+    status: String!
+    message: String
+    createdAt: String!
+    updatedAt: String
+  }
+
+  # Filter Types
+  input WorkspaceFilterInput {
+    category: String
+    isPublic: Boolean
+    search: String
   }
 
   # Channel Types
@@ -189,23 +233,6 @@ const typeDefs = gql`
     createdAt: String!
   }
 
-  type WorkspaceInvitation {
-    _id: ID!
-    workspaceId: ID!
-    email: String!
-    invitedBy: User!
-    status: String!
-    role: String!
-    expiresAt: String!
-    createdAt: String!
-  }
-
-  input WorkspaceInvitationInput {
-    workspaceId: ID!
-    email: String!
-    role: String
-  }
-
   # Query and Mutation
   type Query {
     # User Queries
@@ -217,8 +244,7 @@ const typeDefs = gql`
     getUserWorkspaces: [Workspace!]
     getWorkspace(id: ID!): Workspace
     getWorkspaceMembers(workspaceId: ID!): [User!]
-    getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]
-    getPendingInvitations: [WorkspaceInvitation!]
+    searchPublicWorkspaces(query: String!, filter: WorkspaceFilterInput): [Workspace!]
 
     # Channel Queries
     getWorkspaceChannels(workspaceId: ID!): [Channel!]
@@ -241,6 +267,14 @@ const typeDefs = gql`
 
     # Activity Queries
     getRecentActivities: [Activity!]
+
+    # Invitation queries
+    getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]
+    getPendingInvitations: [WorkspaceInvitation!]
+    
+    # Access request queries
+    getWorkspaceAccessRequests(workspaceId: ID!): [WorkspaceAccessRequest!]
+    getPendingWorkspaceRequests: [WorkspaceAccessRequest!]
   }
 
   type Mutation {
@@ -257,11 +291,7 @@ const typeDefs = gql`
     addWorkspaceMember(workspaceId: ID!, userId: ID!, role: String): Workspace!
     removeWorkspaceMember(workspaceId: ID!, userId: ID!): Workspace!
     updateMemberRole(workspaceId: ID!, userId: ID!, role: String!): Workspace!
-    inviteUserToWorkspace(input: WorkspaceInvitationInput!): WorkspaceInvitation!
-    acceptWorkspaceInvitation(token: String!): Workspace!
-    rejectWorkspaceInvitation(token: String!): Boolean!
-    cancelWorkspaceInvitation(invitationId: ID!): Boolean!
-
+    updateWorkspaceSettings(workspaceId: ID!, isPublic: Boolean!, category: String): Workspace!
 
     # Channel Mutations
     createChannel(input: ChannelInput!): Channel!
@@ -291,6 +321,17 @@ const typeDefs = gql`
     joinMeeting(meetingId: ID!): Meeting!
     leaveMeeting(meetingId: ID!): Boolean!
     endMeeting(meetingId: ID!): Meeting!
+
+    # Invitation mutations
+    inviteUserToWorkspace(input: WorkspaceInvitationInput!): WorkspaceInvitation!
+    acceptWorkspaceInvitation(token: String!): Workspace!
+    rejectWorkspaceInvitation(token: String!): Boolean!
+    cancelWorkspaceInvitation(invitationId: ID!): Boolean!
+    
+    # Access request mutations
+    requestWorkspaceAccess(workspaceId: ID!, message: String): WorkspaceAccessRequest!
+    approveWorkspaceAccessRequest(requestId: ID!): WorkspaceAccessRequest!
+    rejectWorkspaceAccessRequest(requestId: ID!): WorkspaceAccessRequest!
   }
 `;
 
