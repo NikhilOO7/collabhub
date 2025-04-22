@@ -26,6 +26,7 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import CollabHubHeroImage from '../assets/images/collabhub.png';
 
 // Animated typing text component
 const TypedText = ({ texts, delay = 3000 }) => {
@@ -96,109 +97,189 @@ const TypedText = ({ texts, delay = 3000 }) => {
   );
 };
 
-// Feature card component with equal height
-const FeatureCard = ({ icon, title, description }) => {
-  const theme = useTheme();
-  
+// Styled Feature Card to match the screenshot
+const FeatureCardStyled = ({ icon, title, description }) => {
   return (
-    <Paper 
-      elevation={2}
-      sx={{ 
-        height: '100%', 
-        display: 'flex', 
-        flexDirection: 'column',
+    <Paper
+      elevation={1}
+      sx={{
+        height: '100%',
+        borderRadius: 4,
+        overflow: 'hidden',
         transition: 'transform 0.3s, box-shadow 0.3s',
         '&:hover': {
           transform: 'translateY(-5px)',
-          boxShadow: theme.shadows[8],
+          boxShadow: 3,
         },
-        borderRadius: 3,
-        overflow: 'hidden',
       }}
     >
-      <Box sx={{ p: 4, flexGrow: 1, display: 'flex', flexDirection: 'column' }}>
+      <Box sx={{ p: 4, textAlign: 'center' }}>
+        {/* Icon */}
         <Box 
           sx={{ 
-            display: 'flex', 
+            display: 'flex',
             justifyContent: 'center',
-            alignItems: 'center',
             mb: 3,
-            height: 80,
           }}
         >
-          {/* SVG icons for each feature type */}
           {icon === 'chat' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="4" width="20" height="16" rx="2" fill="#3f51b5" fillOpacity="0.2" />
-              <rect x="6" y="8" width="12" height="2" rx="1" fill="#3f51b5" />
-              <rect x="6" y="12" width="12" height="2" rx="1" fill="#3f51b5" />
-              <rect x="6" y="16" width="6" height="2" rx="1" fill="#3f51b5" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="3" width="18" height="18" rx="3" fill="white" fillOpacity="0.2" />
+                <rect x="6" y="8" width="12" height="2" rx="1" fill="white" />
+                <rect x="6" y="12" width="12" height="2" rx="1" fill="white" />
+                <rect x="6" y="16" width="6" height="2" rx="1" fill="white" />
+              </svg>
+            </Box>
           )}
+          
           {icon === 'video' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="6" width="14" height="12" rx="2" fill="#3f51b5" fillOpacity="0.2" />
-              <path d="M16 9L22 6V18L16 15V9Z" fill="#3f51b5" fillOpacity="0.2" stroke="#3f51b5" strokeWidth="1.5" />
-              <circle cx="9" cy="12" r="3" fill="#3f51b5" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="6" width="12" height="12" rx="2" fill="white" fillOpacity="0.2" />
+                <path d="M15 8L21 6V18L15 16V8Z" fill="white" fillOpacity="0.2" stroke="white" strokeWidth="1.5" />
+                <circle cx="9" cy="12" r="2" fill="white" />
+              </svg>
+            </Box>
           )}
+          
           {icon === 'task' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="4" width="20" height="16" rx="2" fill="#3f51b5" fillOpacity="0.2" />
-              <path d="M7 12L10 15L17 8" stroke="#3f51b5" strokeWidth="2" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="3" width="18" height="18" rx="3" fill="white" fillOpacity="0.2" />
+                <path d="M7 12L10 15L17 8" stroke="white" strokeWidth="2" />
+              </svg>
+            </Box>
           )}
+          
           {icon === 'workspace' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <circle cx="12" cy="8" r="4" fill="#3f51b5" fillOpacity="0.2" />
-              <circle cx="6" cy="16" r="3" fill="#3f51b5" fillOpacity="0.2" />
-              <circle cx="18" cy="16" r="3" fill="#3f51b5" fillOpacity="0.2" />
-              <path d="M12 12L6 16M12 12L18 16" stroke="#3f51b5" strokeWidth="1.5" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="8" r="3" fill="white" fillOpacity="0.2" />
+                <circle cx="6" cy="16" r="2.5" fill="white" fillOpacity="0.2" />
+                <circle cx="18" cy="16" r="2.5" fill="white" fillOpacity="0.2" />
+                <path d="M12 11L6 16M12 11L18 16" stroke="white" strokeWidth="1.5" />
+              </svg>
+            </Box>
           )}
+          
           {icon === 'security' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L4 5V11C4 16.55 7.84 21.74 12 23C16.16 21.74 20 16.55 20 11V5L12 2Z" fill="#3f51b5" fillOpacity="0.2" stroke="#3f51b5" strokeWidth="1.5" />
-              <path d="M9 12L11 14L15 10" stroke="#3f51b5" strokeWidth="2" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L4 5V11C4 16.55 7.84 21.74 12 23C16.16 21.74 20 16.55 20 11V5L12 2Z" fill="white" fillOpacity="0.2" stroke="white" strokeWidth="1.5" />
+                <path d="M9 12L11 14L15 10" stroke="white" strokeWidth="2" />
+              </svg>
+            </Box>
           )}
+          
           {icon === 'ai' && (
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="2" y="5" width="20" height="14" rx="2" fill="#3f51b5" fillOpacity="0.2" />
-              <circle cx="7" cy="9" r="1.5" fill="#3f51b5" />
-              <circle cx="7" cy="15" r="1.5" fill="#3f51b5" />
-              <circle cx="17" cy="9" r="1.5" fill="#3f51b5" />
-              <circle cx="17" cy="15" r="1.5" fill="#3f51b5" />
-              <rect x="10" y="8" width="4" height="8" rx="1" fill="#3f51b5" />
-            </svg>
+            <Box
+              sx={{
+                width: 48,
+                height: 48,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                bgcolor: 'primary.main',
+                borderRadius: 2,
+                color: 'white',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3" y="5" width="18" height="14" rx="2" fill="white" fillOpacity="0.2" />
+                <circle cx="7" cy="9" r="1.25" fill="white" />
+                <circle cx="7" cy="15" r="1.25" fill="white" />
+                <circle cx="17" cy="9" r="1.25" fill="white" />
+                <circle cx="17" cy="15" r="1.25" fill="white" />
+                <rect x="10" y="8" width="4" height="8" rx="1" fill="white" />
+              </svg>
+            </Box>
           )}
         </Box>
         
-        {/* Title with fixed height to ensure alignment */}
+        {/* Title */}
         <Typography 
-          variant="h5" 
+          variant="h6" 
           component="h3" 
-          align="center" 
-          gutterBottom
           sx={{ 
-            fontWeight: 'bold',
-            minHeight: '64px', // Ensure consistent title height
+            fontWeight: 'bold', 
+            mb: 2,
+            minHeight: '48px', 
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'center'
           }}
         >
           {title}
         </Typography>
         
-        {/* Description with equal height */}
+        {/* Description */}
         <Typography 
-          variant="body1" 
-          color="text.secondary" 
-          align="center"
+          variant="body2" 
+          color="text.secondary"
           sx={{ 
             lineHeight: 1.6,
-            flexGrow: 1, // Take up remaining space
+            minHeight: '80px',
+            maxWidth: '275px',
+            display: '-webkit-box',
+            WebkitLineClamp: 4,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden'
           }}
         >
           {description}
@@ -208,91 +289,241 @@ const FeatureCard = ({ icon, title, description }) => {
   );
 };
 
-// Individual testimonial card component with proper styling
-const TestimonialCard = ({ quote, author, role, company, avatar }) => {
+// Testimonials Carousel Section
+const TestimonialsSection = () => {
   const theme = useTheme();
+  const [activeSlide, setActiveSlide] = useState(0);
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  
+  const testimonials = [
+    {
+      quote: "CollabHub transformed how our remote team works together. It's like having everyone in the same room.",
+      author: "Sarah Johnson",
+      role: "Product Manager",
+      company: "Acme Inc.",
+      avatar: "https://randomuser.me/api/portraits/women/68.jpg"
+    },
+    {
+      quote: "The integrated tools save us hours every week. We've significantly reduced our need for multiple subscriptions.",
+      author: "Michael Chen",
+      role: "CTO",
+      company: "TechStart Labs",
+      avatar: "https://randomuser.me/api/portraits/men/54.jpg"
+    },
+    {
+      quote: "The AI features help us stay focused on meaningful work instead of administration. Game changer!",
+      author: "Priya Patel",
+      role: "Team Lead",
+      company: "Global Solutions",
+      avatar: "https://randomuser.me/api/portraits/women/37.jpg"
+    }
+  ];
+  
+  useEffect(() => {
+    // Auto-rotate slides every 5 seconds
+    const interval = setInterval(() => {
+      setActiveSlide((prev) => (prev + 1) % testimonials.length);
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, [testimonials.length]);
+  
+  const handleSlideChange = (index) => {
+    setActiveSlide(index);
+  };
   
   return (
-    <Paper 
+    <Box 
+      id="testimonials" 
       sx={{ 
-        display: 'flex',
-        flexDirection: 'column',
+        py: { xs: 8, md: 12 },
+        bgcolor: 'background.paper',
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box sx={{ textAlign: 'center', mb: 8 }}>
+          <Typography 
+            variant="h3" 
+            component="h2" 
+            gutterBottom
+            sx={{ fontWeight: 'bold' }}
+          >
+            What Teams Say About Us
+          </Typography>
+          <Typography 
+            variant="h6" 
+            color="text.secondary" 
+            sx={{ maxWidth: 800, mx: 'auto' }}
+          >
+            Thousands of teams use CollabHub to streamline their workflows and enhance productivity.
+          </Typography>
+        </Box>
+        
+        {/* Desktop: Show all testimonials in one row */}
+        {!isMobile && (
+          <Grid container spacing={4} sx={{ mb: 4 }}>
+            {testimonials.map((testimonial, index) => (
+              <Grid item xs={12} md={4} key={index}>
+                <TestimonialCardStyled 
+                  quote={testimonial.quote}
+                  author={testimonial.author}
+                  role={testimonial.role}
+                  company={testimonial.company}
+                  avatar={testimonial.avatar}
+                />
+              </Grid>
+            ))}
+          </Grid>
+        )}
+        
+        {/* Mobile: Carousel */}
+        {isMobile && (
+          <Box>
+            <Box
+              sx={{
+                position: 'relative',
+                overflow: 'hidden',
+                minHeight: '300px',
+              }}
+            >
+              {testimonials.map((testimonial, index) => (
+                <Box
+                  key={index}
+                  sx={{
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    width: '100%',
+                    opacity: activeSlide === index ? 1 : 0,
+                    transition: 'opacity 0.5s ease-in-out',
+                    pointerEvents: activeSlide === index ? 'auto' : 'none',
+                  }}
+                >
+                  <TestimonialCardStyled 
+                    quote={testimonial.quote}
+                    author={testimonial.author}
+                    role={testimonial.role}
+                    company={testimonial.company}
+                    avatar={testimonial.avatar}
+                  />
+                </Box>
+              ))}
+            </Box>
+            
+            {/* Carousel Controls */}
+            <Box 
+              sx={{ 
+                display: 'flex', 
+                justifyContent: 'center', 
+                mt: 3, 
+                gap: 1 
+              }}
+            >
+              {testimonials.map((_, index) => (
+                <Box
+                  key={index}
+                  onClick={() => handleSlideChange(index)}
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: '50%',
+                    bgcolor: activeSlide === index ? 'primary.main' : 'grey.300',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                    '&:hover': {
+                      bgcolor: activeSlide === index ? 'primary.dark' : 'grey.400',
+                    },
+                  }}
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
+      </Container>
+    </Box>
+  );
+};
+
+// Styled testimonial card
+const TestimonialCardStyled = ({ quote, author, role, company, avatar }) => {
+  return (
+    <Paper
+      elevation={1}
+      sx={{
         height: '100%',
-        width: '100%',
-        borderRadius: 3,
-        boxShadow: 2,
+        borderRadius: 4,
+        maxWidth: 350,
+        overflow: 'hidden',
         transition: 'transform 0.3s, box-shadow 0.3s',
         '&:hover': {
           transform: 'translateY(-5px)',
-          boxShadow: 4,
+          boxShadow: 3,
         },
-        overflow: 'hidden',
       }}
     >
-      <Box sx={{ p: 4, display: 'flex', flexDirection: 'column', flexGrow: 1 }}>
-        {/* Quote */}
-        <Box sx={{ position: 'relative', mb: 4, flexGrow: 1 }}>
-          {/* Quote icon */}
-          <Typography
-            component="span"
-            sx={{
-              fontSize: '3rem',
-              fontFamily: 'Georgia, serif',
-              color: theme.palette.primary.light,
-              opacity: 0.2,
+      <Box sx={{ p: 4 }}>
+        {/* Quote with proper styling */}
+        <Box sx={{ mb: 3, position: 'relative' }}>
+          {/* Quote marks - visible but subtle */}
+          <Typography 
+            variant="h3" 
+            component="span" 
+            sx={{ 
               position: 'absolute',
               top: -20,
               left: -10,
-              lineHeight: 1,
+              color: 'primary.light',
+              opacity: 0.1,
+              fontFamily: 'Georgia, serif',
+              fontSize: '4rem',
             }}
           >
             "
           </Typography>
           
-          {/* Quote text */}
+          {/* The quote itself */}
           <Typography 
             variant="body1" 
             sx={{ 
-              fontStyle: 'italic',
-              position: 'relative', 
-              zIndex: 1,
-              pl: 1,
+              fontStyle: 'italic', 
+              position: 'relative',
+              pl: 2,
             }}
           >
             {quote}
           </Typography>
           
-          {/* Closing quote */}
-          <Typography
-            component="span"
-            sx={{
-              fontSize: '3rem',
-              fontFamily: 'Georgia, serif',
-              color: theme.palette.primary.light,
-              opacity: 0.2,
+          {/* Closing quote mark */}
+          <Typography 
+            variant="h3" 
+            component="span" 
+            sx={{ 
               position: 'absolute',
-              bottom: -40,
+              bottom: -30,
               right: -10,
-              lineHeight: 1,
+              color: 'primary.light',
+              opacity: 0.1,
+              fontFamily: 'Georgia, serif',
+              fontSize: '4rem',
             }}
           >
             "
           </Typography>
         </Box>
         
-        <Divider sx={{ mt: 'auto', mb: 2 }} />
+        <Divider sx={{ my: 2 }} />
         
         {/* Author info */}
         <Box sx={{ display: 'flex', alignItems: 'center' }}>
           <Avatar 
-            src={avatar} 
+            src={avatar}
             alt={author}
             sx={{ 
-              width: 50, 
-              height: 50, 
+              width: 42, 
+              height: 42, 
               mr: 2,
               border: '2px solid',
-              borderColor: 'primary.main',
+              borderColor: 'primary.light',
             }}
           />
           <Box>
@@ -309,6 +540,7 @@ const TestimonialCard = ({ quote, author, role, company, avatar }) => {
   );
 };
 
+// Main Landing Page Component
 const LandingPage = () => {
   const theme = useTheme();
   const navigate = useNavigate();
@@ -358,31 +590,6 @@ const LandingPage = () => {
       icon: 'ai',
       title: "AI-Powered Assistant",
       description: "Boost productivity with AI that summarizes discussions, schedules meetings, and automates routine tasks."
-    }
-  ];
-  
-  // Testimonials data
-  const testimonials = [
-    {
-      quote: "CollabHub transformed how our remote team works together. It's like having everyone in the same room.",
-      author: "Sarah Johnson",
-      role: "Product Manager",
-      company: "Acme Inc.",
-      avatar: "https://randomuser.me/api/portraits/women/68.jpg"
-    },
-    {
-      quote: "The integrated tools save us hours every week. We've significantly reduced our need for multiple subscriptions.",
-      author: "Michael Chen",
-      role: "CTO",
-      company: "TechStart Labs",
-      avatar: "https://randomuser.me/api/portraits/men/54.jpg"
-    },
-    {
-      quote: "The AI features help us stay focused on meaningful work instead of administration. Game changer!",
-      author: "Priya Patel",
-      role: "Team Lead",
-      company: "Global Solutions",
-      avatar: "https://randomuser.me/api/portraits/women/37.jpg"
     }
   ];
   
@@ -739,7 +946,7 @@ const LandingPage = () => {
             {/* Main hero image */}
             <Box
               component="img"
-              src="https://cdn.dribbble.com/users/2493316/screenshots/15487226/media/711a56ffe4bf8c4b2d450ee778d5cb55.png"
+              src={CollabHubHeroImage}
               alt="CollabHub Dashboard"
               sx={{
                 width: '100%',
@@ -843,7 +1050,7 @@ const LandingPage = () => {
           <Grid container spacing={4} sx={{ mb: 4 }}>
             {features.slice(0, 3).map((feature, index) => (
               <Grid item xs={12} md={4} key={index}>
-                <FeatureCard 
+                <FeatureCardStyled 
                   icon={feature.icon}
                   title={feature.title}
                   description={feature.description}
@@ -856,7 +1063,7 @@ const LandingPage = () => {
           <Grid container spacing={4}>
             {features.slice(3, 6).map((feature, index) => (
               <Grid item xs={12} md={4} key={index + 3}>
-                <FeatureCard 
+                <FeatureCardStyled 
                   icon={feature.icon}
                   title={feature.title}
                   description={feature.description}
@@ -867,48 +1074,8 @@ const LandingPage = () => {
         </Container>
       </Box>
       
-      {/* Testimonials Section */}
-      <Box 
-        id="testimonials" 
-        sx={{ 
-          py: { xs: 8, md: 12 },
-          bgcolor: 'background.paper',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Box sx={{ textAlign: 'center', mb: 8 }}>
-            <Typography 
-              variant="h3" 
-              component="h2" 
-              gutterBottom
-              sx={{ fontWeight: 'bold' }}
-            >
-              What Teams Say About Us
-            </Typography>
-            <Typography 
-              variant="h6" 
-              color="text.secondary" 
-              sx={{ maxWidth: 800, mx: 'auto' }}
-            >
-              Thousands of teams use CollabHub to streamline their workflows and enhance productivity.
-            </Typography>
-          </Box>
-          
-          <Grid container spacing={4} alignItems="stretch">
-            {testimonials.map((testimonial, index) => (
-              <Grid item xs={12} md={4} key={index} sx={{ display: 'flex' }}>
-                <TestimonialCard 
-                  quote={testimonial.quote}
-                  author={testimonial.author}
-                  role={testimonial.role}
-                  company={testimonial.company}
-                  avatar={testimonial.avatar}
-                />
-              </Grid>
-            ))}
-          </Grid>
-        </Container>
-      </Box>
+      {/* Testimonials Section with Carousel */}
+      <TestimonialsSection />
       
       {/* Pricing Section */}
       <Box 
@@ -1072,169 +1239,168 @@ const LandingPage = () => {
             height: 400,
             borderRadius: '50%',
             background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 70%, rgba(0,0,0,0) 100%)',
-            zIndex: 0,
-          }}
-        />
-        <Box 
-          sx={{
-            position: 'absolute',
-            bottom: -50,
-            left: -50,
-            width: 300,
-            height: 300,
-            borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 70%, rgba(0,0,0,0) 100%)',
-            zIndex: 0,
-          }}
-        />
-        
-        <Container 
-          maxWidth="md" 
-          sx={{ 
-            position: 'relative',
-            zIndex: 1,
-            textAlign: 'center',
-          }}
-        >
-          <Typography 
-            variant="h3" 
-            component="h2" 
-            gutterBottom
-            sx={{ fontWeight: 'bold' }}
-          >
-            Start Collaborating Today
-          </Typography>
-          <Typography 
-            variant="h6" 
-            paragraph
-            sx={{ mb: 4, opacity: 0.9 }}
-          >
-            Join thousands of teams already using CollabHub to boost their productivity and streamline communication.
-          </Typography>
-          <Box>
-            <Button 
-              variant="contained" 
-              color="secondary" 
-              size="large"
-              onClick={handleSignup}
+            zIndex: 0,}}
+            />
+            <Box 
+              sx={{
+                position: 'absolute',
+                bottom: -50,
+                left: -50,
+                width: 300,
+                height: 300,
+                borderRadius: '50%',
+                background: 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 70%, rgba(0,0,0,0) 100%)',
+                zIndex: 0,
+              }}
+            />
+            
+            <Container 
+              maxWidth="md" 
               sx={{ 
-                py: 1.5, 
-                px: 4, 
-                borderRadius: 1,
-                fontWeight: 'bold',
-                bgcolor: 'white',
-                color: 'primary.main',
-                '&:hover': {
-                  bgcolor: 'rgba(255,255,255,0.9)',
-                },
+                position: 'relative',
+                zIndex: 1,
+                textAlign: 'center',
               }}
             >
-              Get Started Free
-            </Button>
-            <Typography 
-              variant="body2" 
-              sx={{ mt: 2, opacity: 0.7 }}
-            >
-              No credit card required. Free plan available forever.
-            </Typography>
-          </Box>
-        </Container>
-      </Box>
-      
-      {/* Footer Section */}
-      <Box 
-        component="footer" 
-        sx={{ 
-          py: 6,
-          bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)',
-        }}
-      >
-        <Container maxWidth="lg">
-          <Grid container spacing={4}>
-            <Grid item xs={12} md={4}>
               <Typography 
-                variant="h6" 
-                component="h3" 
+                variant="h3" 
+                component="h2" 
                 gutterBottom
                 sx={{ fontWeight: 'bold' }}
               >
-                CollabHub
+                Start Collaborating Today
               </Typography>
-              <Typography variant="body2" color="text.secondary" paragraph>
-                All-in-one collaboration platform for teams of all sizes.
-                Communicate, collaborate, and coordinate in one unified workspace.
+              <Typography 
+                variant="h6" 
+                paragraph
+                sx={{ mb: 4, opacity: 0.9 }}
+              >
+                Join thousands of teams already using CollabHub to boost their productivity and streamline communication.
               </Typography>
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" color="text.secondary">
-                  &copy; {new Date().getFullYear()} CollabHub. All rights reserved.
+              <Box>
+                <Button 
+                  variant="contained" 
+                  color="secondary" 
+                  size="large"
+                  onClick={handleSignup}
+                  sx={{ 
+                    py: 1.5, 
+                    px: 4, 
+                    borderRadius: 1,
+                    fontWeight: 'bold',
+                    bgcolor: 'white',
+                    color: 'primary.main',
+                    '&:hover': {
+                      bgcolor: 'rgba(255,255,255,0.9)',
+                    },
+                  }}
+                >
+                  Get Started Free
+                </Button>
+                <Typography 
+                  variant="body2" 
+                  sx={{ mt: 2, opacity: 0.7 }}
+                >
+                  No credit card required. Free plan available forever.
                 </Typography>
               </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                Product
-              </Typography>
-              <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
-                {['Features', 'Pricing', 'Integrations', 'Updates', 'Security'].map((item) => (
-                  <Box component="li" key={item} sx={{ mb: 1 }}>
-                    <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
-                      {item}
-                    </Button>
+            </Container>
+          </Box>
+          
+          {/* Footer Section */}
+          <Box 
+            component="footer" 
+            sx={{ 
+              py: 6,
+              bgcolor: theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.05)',
+            }}
+          >
+            <Container maxWidth="lg">
+              <Grid container spacing={4}>
+                <Grid item xs={12} md={4}>
+                  <Typography 
+                    variant="h6" 
+                    component="h3" 
+                    gutterBottom
+                    sx={{ fontWeight: 'bold' }}
+                  >
+                    CollabHub
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    All-in-one collaboration platform for teams of all sizes.
+                    Communicate, collaborate, and coordinate in one unified workspace.
+                  </Typography>
+                  <Box sx={{ mt: 2 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      &copy; {new Date().getFullYear()} CollabHub. All rights reserved.
+                    </Typography>
                   </Box>
-                ))}
-              </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                Resources
-              </Typography>
-              <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
-                {['Documentation', 'Tutorials', 'Blog', 'API', 'Community'].map((item) => (
-                  <Box component="li" key={item} sx={{ mb: 1 }}>
-                    <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
-                      {item}
-                    </Button>
+                </Grid>
+                
+                <Grid item xs={6} sm={3} md={2}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Product
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
+                    {['Features', 'Pricing', 'Integrations', 'Updates', 'Security'].map((item) => (
+                      <Box component="li" key={item} sx={{ mb: 1 }}>
+                        <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                          {item}
+                        </Button>
+                      </Box>
+                    ))}
                   </Box>
-                ))}
-              </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                Company
-              </Typography>
-              <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
-                {['About', 'Careers', 'Contact', 'Privacy', 'Terms'].map((item) => (
-                  <Box component="li" key={item} sx={{ mb: 1 }}>
-                    <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
-                      {item}
-                    </Button>
+                </Grid>
+                
+                <Grid item xs={6} sm={3} md={2}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Resources
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
+                    {['Documentation', 'Tutorials', 'Blog', 'API', 'Community'].map((item) => (
+                      <Box component="li" key={item} sx={{ mb: 1 }}>
+                        <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                          {item}
+                        </Button>
+                      </Box>
+                    ))}
                   </Box>
-                ))}
-              </Box>
-            </Grid>
-            
-            <Grid item xs={6} sm={3} md={2}>
-              <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
-                Support
-              </Typography>
-              <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
-                {['Help Center', 'Status', 'FAQ', 'Contact Us', 'Feedback'].map((item) => (
-                  <Box component="li" key={item} sx={{ mb: 1 }}>
-                    <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
-                      {item}
-                    </Button>
+                </Grid>
+                
+                <Grid item xs={6} sm={3} md={2}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Company
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
+                    {['About', 'Careers', 'Contact', 'Privacy', 'Terms'].map((item) => (
+                      <Box component="li" key={item} sx={{ mb: 1 }}>
+                        <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                          {item}
+                        </Button>
+                      </Box>
+                    ))}
                   </Box>
-                ))}
-              </Box>
-            </Grid>
-          </Grid>
-        </Container>
-      </Box>
-    </>
-  );
-};
-
-export default LandingPage;
+                </Grid>
+                
+                <Grid item xs={6} sm={3} md={2}>
+                  <Typography variant="subtitle1" gutterBottom sx={{ fontWeight: 500 }}>
+                    Support
+                  </Typography>
+                  <Box component="ul" sx={{ pl: 0, listStyle: 'none' }}>
+                    {['Help Center', 'Status', 'FAQ', 'Contact Us', 'Feedback'].map((item) => (
+                      <Box component="li" key={item} sx={{ mb: 1 }}>
+                        <Button color="inherit" sx={{ p: 0, minWidth: 'auto', textTransform: 'none' }}>
+                          {item}
+                        </Button>
+                      </Box>
+                    ))}
+                  </Box>
+                </Grid>
+              </Grid>
+            </Container>
+          </Box>
+        </>
+      );
+    };
+    
+    export default LandingPage;
