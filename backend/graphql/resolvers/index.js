@@ -1,3 +1,4 @@
+// graphql/resolvers/index.js
 const userResolvers = require('./user');
 const workspaceResolvers = require('./workspace');
 const channelResolvers = require('./channel');
@@ -5,6 +6,7 @@ const messageResolvers = require('./message');
 const taskResolvers = require('./task');
 const meetingResolvers = require('./meeting');
 const activityResolvers = require('./activity');
+const invitationResolvers = require('./invitation');
 
 module.exports = {
   Query: {
@@ -15,6 +17,7 @@ module.exports = {
     ...taskResolvers.Query,
     ...meetingResolvers.Query,
     ...activityResolvers.Query,
+    ...invitationResolvers.Query,
   },
   
   Mutation: {
@@ -24,6 +27,7 @@ module.exports = {
     ...messageResolvers.Mutation,
     ...taskResolvers.Mutation,
     ...meetingResolvers.Mutation,
+    ...invitationResolvers.Mutation,
   },
   
   Workspace: {
@@ -44,5 +48,9 @@ module.exports = {
   
   Meeting: {
     ...meetingResolvers.Meeting,
+  },
+  
+  WorkspaceInvitation: {
+    ...invitationResolvers.WorkspaceInvitation,
   },
 };

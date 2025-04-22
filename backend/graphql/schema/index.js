@@ -189,6 +189,23 @@ const typeDefs = gql`
     createdAt: String!
   }
 
+  type WorkspaceInvitation {
+    _id: ID!
+    workspaceId: ID!
+    email: String!
+    invitedBy: User!
+    status: String!
+    role: String!
+    expiresAt: String!
+    createdAt: String!
+  }
+
+  input WorkspaceInvitationInput {
+    workspaceId: ID!
+    email: String!
+    role: String
+  }
+
   # Query and Mutation
   type Query {
     # User Queries
@@ -200,6 +217,8 @@ const typeDefs = gql`
     getUserWorkspaces: [Workspace!]
     getWorkspace(id: ID!): Workspace
     getWorkspaceMembers(workspaceId: ID!): [User!]
+    getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]
+    getPendingInvitations: [WorkspaceInvitation!]
 
     # Channel Queries
     getWorkspaceChannels(workspaceId: ID!): [Channel!]
@@ -238,6 +257,11 @@ const typeDefs = gql`
     addWorkspaceMember(workspaceId: ID!, userId: ID!, role: String): Workspace!
     removeWorkspaceMember(workspaceId: ID!, userId: ID!): Workspace!
     updateMemberRole(workspaceId: ID!, userId: ID!, role: String!): Workspace!
+    inviteUserToWorkspace(input: WorkspaceInvitationInput!): WorkspaceInvitation!
+    acceptWorkspaceInvitation(token: String!): Workspace!
+    rejectWorkspaceInvitation(token: String!): Boolean!
+    cancelWorkspaceInvitation(invitationId: ID!): Boolean!
+
 
     # Channel Mutations
     createChannel(input: ChannelInput!): Channel!
