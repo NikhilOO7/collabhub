@@ -76,12 +76,16 @@ const WorkspaceDirectory = () => {
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [selectedWorkspace, setSelectedWorkspace] = useState(null);
   const [requestSuccess, setRequestSuccess] = useState(false);
+  const [error, setError] = useState(''); // Added missing error state
 
   // Search workspaces query
-  const { loading, error, data, refetch } = useQuery(SEARCH_PUBLIC_WORKSPACES, {
+  const { loading, error: queryError, data, refetch } = useQuery(SEARCH_PUBLIC_WORKSPACES, {
     variables: { query: searchQuery || '' },
     fetchPolicy: 'network-only',
-    skip: searchQuery === '' // Skip initial query when searchQuery is empty
+    skip: searchQuery === '', // Skip initial query when searchQuery is empty
+    onError: (err) => {
+      setError(err.message);
+    }
   });
 
   // Request workspace access mutation
@@ -93,6 +97,9 @@ const WorkspaceDirectory = () => {
         setShowRequestDialog(false);
         setRequestSuccess(false);
       }, 3000);
+    },
+    onError: (err) => {
+      setError(err.message);
     }
   });
 
@@ -121,6 +128,7 @@ const WorkspaceDirectory = () => {
   const handleRequestAccess = (workspace) => {
     setSelectedWorkspace(workspace);
     setShowRequestDialog(true);
+    setError(''); // Clear any previous errors
   };
 
   // Submit request
@@ -129,9 +137,13 @@ const WorkspaceDirectory = () => {
 
     try {
       await requestAccess({
-        variables: { workspaceId: selectedWorkspace._id }
+        variables: { 
+          workspaceId: selectedWorkspace._id,
+          message: "" // Add an optional message parameter
+        }
       });
     } catch (err) {
+      // Error handled in mutation onError callback
       console.error('Error requesting access:', err);
     }
   };
@@ -200,6 +212,19 @@ const WorkspaceDirectory = () => {
           <Typography variant="body1" color="text.secondary" paragraph>
             Search for public workspaces by name, description, or category.
           </Typography>
+          
+          {/* Display errors */}
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+          
+          {queryError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Error searching workspaces: {queryError.message}
+            </Alert>
+          )}
           
           <Box 
             component="form" 
@@ -278,12 +303,6 @@ const WorkspaceDirectory = () => {
       </Paper>
 
       {/* Search Results */}
-      {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
-          Error loading workspaces: {error.message}
-        </Alert>
-      )}
-
       {searchQuery && data?.searchPublicWorkspaces?.length === 0 && !loading && (
         <Alert severity="info" sx={{ mb: 3 }}>
           No workspaces found matching "{searchQuery}". Try a different search term.
@@ -423,7 +442,11 @@ const WorkspaceDirectory = () => {
                 You're requesting to join <strong>{selectedWorkspace?.name}</strong>. 
                 The workspace administrator will need to approve your request before you can access it.
               </DialogContentText>
-              {/* For future enhancement: Add a message field for the user to include with their request */}
+              {error && (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {error}
+                </Alert>
+              )}
             </>
           )}
         </DialogContent>

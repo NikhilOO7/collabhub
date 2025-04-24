@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useCallback } from 'react';
 import { useMutation, useQuery, useApolloClient, gql } from '@apollo/client';
 
 // GraphQL queries and mutations
@@ -61,6 +61,24 @@ const UPDATE_PASSWORD = gql`
 // Create context
 const AuthContext = createContext();
 
+// Helper function to parse JWT without external dependencies
+const parseJwt = (token) => {
+  try {
+    const base64Url = token.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    );
+    return JSON.parse(jsonPayload);
+  } catch (error) {
+    console.error('Error parsing token:', error);
+    return null;
+  }
+};
+
 // Auth provider component
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -91,9 +109,26 @@ export const AuthProvider = ({ children }) => {
   // Update password mutation
   const [updatePasswordMutation] = useMutation(UPDATE_PASSWORD);
 
+  // Check token validity
+  const isTokenValid = useCallback(() => {
+    const token = localStorage.getItem('token');
+    if (!token) return false;
+    
+    try {
+      const decoded = parseJwt(token);
+      if (!decoded || !decoded.exp) return false;
+      
+      // Check if token is expired
+      return decoded.exp * 1000 > Date.now();
+    } catch (err) {
+      console.error('Invalid token:', err);
+      return false;
+    }
+  }, []);
+
   // Get current user query with proper error handling
   const { data: userData, loading: userLoading, error: userError } = useQuery(GET_CURRENT_USER, {
-    skip: !localStorage.getItem('token'),
+    skip: !localStorage.getItem('token') || !isTokenValid(),
     fetchPolicy: 'network-only',
     onError: (error) => {
       console.error('Error fetching current user:', error);
@@ -114,7 +149,7 @@ export const AuthProvider = ({ children }) => {
         initializeSessionTimeout();
       } else {
         // Clear token if user data is not available
-        if (localStorage.getItem('token') && userError) {
+        if (localStorage.getItem('token') && (userError || !isTokenValid())) {
           localStorage.removeItem('token');
         }
         setUser(null);
@@ -122,13 +157,22 @@ export const AuthProvider = ({ children }) => {
       }
       setIsLoading(false);
     }
-  }, [userData, userLoading, userError]);
+  }, [userData, userLoading, userError, isTokenValid]);
+
+  // Initialize session timeout
+  const initializeSessionTimeout = () => {
+    setLastActivity(Date.now());
+    setSessionTimeout(null);
+  };
 
   // Session timeout management
   useEffect(() => {
     // Track user activity
     const handleActivity = () => {
       setLastActivity(Date.now());
+      if (sessionTimeout) {
+        setSessionTimeout(null);
+      }
     };
 
     window.addEventListener('mousemove', handleActivity);
@@ -142,7 +186,7 @@ export const AuthProvider = ({ children }) => {
       window.removeEventListener('click', handleActivity);
       window.removeEventListener('touchstart', handleActivity);
     };
-  }, []);
+  }, [sessionTimeout]);
 
   // Check for inactivity
   useEffect(() => {
@@ -177,6 +221,7 @@ export const AuthProvider = ({ children }) => {
         if (timeLeft <= 0) {
           clearInterval(updateCountdown);
           setSessionTimeout(null);
+          logout();
         } else {
           setSessionTimeout(prev => ({
             ...prev,
@@ -189,64 +234,9 @@ export const AuthProvider = ({ children }) => {
     }
   }, [sessionTimeout]);
 
-  // Initialize session timeout
-  const initializeSessionTimeout = () => {
-    setLastActivity(Date.now());
-    setSessionTimeout(null);
-  };
-
   // Extend session
   const extendSession = () => {
     initializeSessionTimeout();
-  };
-
-  // Request media permissions
-  const requestMediaPermissions = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: true,
-        video: true,
-      });
-      
-      // Stop tracks after permission check
-      stream.getTracks().forEach(track => track.stop());
-      
-      setMediaPermissions({ audio: true, video: true });
-      return true;
-    } catch (error) {
-      console.error('Media permission error:', error);
-      setMediaPermissions({
-        audio: error.name === 'NotAllowedError' ? false : error.constraints?.audio || false,
-        video: error.name === 'NotAllowedError' ? false : error.constraints?.video || false,
-      });
-      return false;
-    }
-  };
-
-  // Get available devices
-  const getAvailableDevices = async () => {
-    try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      return {
-        audioInputs: devices.filter(d => d.kind === 'audioinput'),
-        audioOutputs: devices.filter(d => d.kind === 'audiooutput'),
-        videoInputs: devices.filter(d => d.kind === 'videoinput'),
-      };
-    } catch (error) {
-      console.error('Error getting devices:', error);
-      return { audioInputs: [], audioOutputs: [], videoInputs: [] };
-    }
-  };
-
-  // Update device settings
-  const updateDeviceSettings = (settings) => {
-    const newSettings = { ...deviceSettings, ...settings };
-    setDeviceSettings(newSettings);
-    
-    // Save to localStorage
-    if (settings.audioInput) localStorage.setItem('preferredAudioInput', settings.audioInput);
-    if (settings.audioOutput) localStorage.setItem('preferredAudioOutput', settings.audioOutput);
-    if (settings.videoInput) localStorage.setItem('preferredVideoInput', settings.videoInput);
   };
 
   // Generate a secure password
@@ -456,16 +446,65 @@ export const AuthProvider = ({ children }) => {
       // Reset Apollo store
       await client.resetStore();
       
-      // Redirect to landing page
-      window.location.href = '/';
+      return true;
     } catch (error) {
       console.error('Logout error:', error);
+      return false;
     }
   };
 
   // Get remembered email
   const getRememberedEmail = () => {
     return localStorage.getItem('rememberedEmail') || '';
+  };
+
+  // Request media permissions
+  const requestMediaPermissions = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+        video: true,
+      });
+      
+      // Stop tracks after permission check
+      stream.getTracks().forEach(track => track.stop());
+      
+      setMediaPermissions({ audio: true, video: true });
+      return true;
+    } catch (error) {
+      console.error('Media permission error:', error);
+      setMediaPermissions({
+        audio: error.name === 'NotAllowedError' ? false : error.constraints?.audio || false,
+        video: error.name === 'NotAllowedError' ? false : error.constraints?.video || false,
+      });
+      return false;
+    }
+  };
+
+  // Get available devices
+  const getAvailableDevices = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      return {
+        audioInputs: devices.filter(d => d.kind === 'audioinput'),
+        audioOutputs: devices.filter(d => d.kind === 'audiooutput'),
+        videoInputs: devices.filter(d => d.kind === 'videoinput'),
+      };
+    } catch (error) {
+      console.error('Error getting devices:', error);
+      return { audioInputs: [], audioOutputs: [], videoInputs: [] };
+    }
+  };
+
+  // Update device settings
+  const updateDeviceSettings = (settings) => {
+    const newSettings = { ...deviceSettings, ...settings };
+    setDeviceSettings(newSettings);
+    
+    // Save to localStorage
+    if (settings.audioInput) localStorage.setItem('preferredAudioInput', settings.audioInput);
+    if (settings.audioOutput) localStorage.setItem('preferredAudioOutput', settings.audioOutput);
+    if (settings.videoInput) localStorage.setItem('preferredVideoInput', settings.videoInput);
   };
 
   return (

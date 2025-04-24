@@ -27,7 +27,7 @@ export const GET_PENDING_INVITATIONS = gql`
       role
       token
       expiresAt
-      workspace {  // Changed from workspaceId to workspace
+      workspace {
         _id
         name
         description

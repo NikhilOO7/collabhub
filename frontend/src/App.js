@@ -16,6 +16,7 @@ import UserProfile from './pages/UserProfile';
 import NotFound from './pages/NotFound';
 import ExploreWorkspaces from './pages/ExploreWorkspaces';
 import Invitations from './pages/Invitations';
+import Meetings from './pages/Meetings';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -103,6 +104,15 @@ const App = () => {
         element={
           <ProtectedRoute>
             <Dashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/workspace/:workspaceId/meetings"
+        element={
+          <ProtectedRoute>
+            <Meetings />
           </ProtectedRoute>
         }
       />

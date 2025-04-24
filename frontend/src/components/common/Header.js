@@ -1,5 +1,5 @@
 // src/components/common/Header.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AppBar,
   Toolbar,
@@ -25,45 +25,66 @@ import {
   ExitToApp as LogoutIcon,
   Settings as SettingsIcon,
   Notifications as NotificationsIcon,
-  Help as HelpIcon
+  Help as HelpIcon,
+  VideoCall as VideoCallIcon
 } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { useQuery, gql } from '@apollo/client';
+import { useSocket } from '../../context/SocketContext';
 
 // GraphQL query to get pending invitations
 const GET_PENDING_INVITATIONS = gql`
   query GetPendingNotifications {
     getPendingInvitations {
       _id
-      workspaceId {
+      workspace {
         _id
         name
       }
       invitedBy {
+        _id
         username
       }
       createdAt
     }
+    getUnreadNotificationsCount
   }
 `;
 
 const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
   const { user, logout } = useAuth();
+  const { socket } = useSocket();
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   
   const [anchorEl, setAnchorEl] = useState(null);
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState(null);
+  const [meetingInvites, setMeetingInvites] = useState([]);
   
   // Get pending invitations for notification menu
-  const { data: notificationData } = useQuery(GET_PENDING_INVITATIONS, {
+  const { data: notificationData, refetch: refetchNotifications } = useQuery(GET_PENDING_INVITATIONS, {
     fetchPolicy: 'network-only',
     pollInterval: 60000 // Poll every minute
   });
   
   const pendingInvitations = notificationData?.getPendingInvitations || [];
+  const unreadCount = (notificationData?.getUnreadNotificationsCount || 0) + pendingInvitations.length + meetingInvites.length;
+  
+  // Listen for meeting invites
+  useEffect(() => {
+    if (socket && socket.connected) {
+      socket.on('meeting-invite', (invite) => {
+        console.log('Received meeting invite:', invite);
+        setMeetingInvites(prev => [invite, ...prev]);
+      });
+      
+      return () => {
+        socket.off('meeting-invite');
+      }
+    }
+  }, [socket]);
   
   const handleProfileMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -75,6 +96,7 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
   
   const handleNotificationsOpen = (event) => {
     setNotificationsAnchorEl(event.currentTarget);
+    refetchNotifications();
   };
   
   const handleNotificationsClose = () => {
@@ -90,6 +112,15 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
     handleMenuClose();
     logout();
     navigate('/logout');
+  };
+  
+  // Join meeting from invite
+  const handleJoinMeeting = (meetingId) => {
+    handleNotificationsClose();
+    // Remove from invites list
+    setMeetingInvites(prev => prev.filter(invite => invite.meetingId !== meetingId));
+    // Navigate to meeting
+    navigate(`/video/${meetingId}`);
   };
   
   // Format date for notifications
@@ -185,7 +216,7 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
             onClick={handleNotificationsOpen}
             size="large"
           >
-            <Badge badgeContent={notificationCount} color="error">
+            <Badge badgeContent={unreadCount} color="error">
               <NotificationsIcon />
             </Badge>
           </IconButton>
@@ -290,6 +321,8 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
             filter: 'drop-shadow(0px 2px 8px rgba(0,0,0,0.1))',
             mt: 1.5,
             width: 320,
+            maxHeight: 450,
+            overflowY: 'auto'
           },
         }}
       >
@@ -297,6 +330,40 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
           <Typography variant="subtitle1" fontWeight="bold">Notifications</Typography>
         </Box>
         
+        {/* Meeting Invites */}
+        {meetingInvites.length > 0 && (
+          <>
+            {meetingInvites.map((invite) => (
+              <MenuItem 
+                key={`meeting-${invite.meetingId}`} 
+                onClick={() => handleJoinMeeting(invite.meetingId)}
+                sx={{ 
+                  borderLeft: '4px solid',
+                  borderColor: 'secondary.main',
+                  bgcolor: 'rgba(245, 0, 87, 0.05)'
+                }}
+              >
+                <Box sx={{ width: '100%' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                    <VideoCallIcon color="secondary" fontSize="small" sx={{ mr: 1 }} />
+                    <Typography variant="body2" sx={{ fontWeight: 'medium' }}>
+                      Meeting Invite: {invite.title}
+                    </Typography>
+                  </Box>
+                  <Typography variant="body2">
+                    <strong>{invite.inviter?.username || invite.host?.username}</strong> invited you to join a meeting
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                    {formatTimeAgo(invite.timestamp)}
+                  </Typography>
+                </Box>
+              </MenuItem>
+            ))}
+            <Divider />
+          </>
+        )}
+        
+        {/* Workspace Invitations */}
         {pendingInvitations.length > 0 ? (
           <>
             {pendingInvitations.map((invitation) => (
@@ -309,9 +376,11 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
               >
                 <Box sx={{ width: '100%' }}>
                   <Typography variant="body2">
-                    <strong>{invitation.invitedBy.username}</strong> invited you to join <strong>{invitation.workspaceId.name}</strong>
+                    <strong>{invitation.invitedBy.username}</strong> invited you to join <strong>{invitation.workspace.name}</strong>
                   </Typography>
-                  <Typography variant="caption" color="text.secondary">{formatTimeAgo(invitation.createdAt)}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {formatTimeAgo(invitation.createdAt)}
+                  </Typography>
                 </Box>
               </MenuItem>
             ))}
@@ -330,11 +399,15 @@ const Header = ({ onDrawerToggle, notificationCount = 0 }) => {
             </Box>
           </>
         ) : (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
-            <Typography variant="body2" color="text.secondary">
-              No new notifications
-            </Typography>
-          </Box>
+          <>
+            {meetingInvites.length === 0 && (
+              <Box sx={{ p: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No new notifications
+                </Typography>
+              </Box>
+            )}
+          </>
         )}
       </Menu>
     </AppBar>

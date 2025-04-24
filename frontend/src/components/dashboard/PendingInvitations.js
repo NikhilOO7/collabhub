@@ -168,24 +168,24 @@ const PendingInvitations = () => {
               <CardContent sx={{ flexGrow: 1 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
                 <Avatar 
-                    src={invitation.workspace.owner.profilePicture} 
-                    alt={invitation.workspace.owner.username}
+                    src={invitation.workspace?.owner?.profilePicture} 
+                    alt={invitation.workspace?.owner?.username}
                     sx={{ mr: 1 }}
                   >
-                    {invitation.workspace.owner.username.charAt(0).toUpperCase()}
+                    {invitation.workspace?.owner?.username?.charAt(0).toUpperCase()}
                   </Avatar>
                   <Box>
                     <Typography variant="subtitle1">
-                      {invitation.workspace.name}
+                      {invitation.workspace?.name}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Invited by {invitation.invitedBy.username}
+                      Invited by {invitation.invitedBy?.username}
                     </Typography>
                   </Box>
                 </Box>
 
                 <Typography variant="body2" sx={{ mb: 2 }}>
-                  {invitation.workspaceId.description || "No description provided."}
+                  {invitation.workspace?.description || "No description provided."}
                 </Typography>
 
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
@@ -243,7 +243,7 @@ const PendingInvitations = () => {
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to join <strong>{selectedInvitation?.workspaceId?.name}</strong>? 
+            Are you sure you want to join <strong>{selectedInvitation?.workspace?.name}</strong>? 
             You'll be added as a {selectedInvitation?.role === 'admin' ? 'an administrator' : 'a member'}.
           </DialogContentText>
           {error && (
@@ -277,7 +277,7 @@ const PendingInvitations = () => {
         </DialogTitle>
         <DialogContent>
           <DialogContentText>
-            Are you sure you want to decline the invitation to join <strong>{selectedInvitation?.workspaceId?.name}</strong>?
+            Are you sure you want to decline the invitation to join <strong>{selectedInvitation?.workspace?.name}</strong>?
           </DialogContentText>
           {error && (
             <Alert severity="error" sx={{ mt: 2 }}>

@@ -12,8 +12,19 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
+  DialogContentText,
   DialogActions,
   CircularProgress,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Chip,
+  Checkbox,
+  Tooltip,
+  Snackbar,
+  Alert
 } from '@mui/material';
 import {
   Mic as MicIcon,
@@ -27,6 +38,8 @@ import {
   Close as CloseIcon,
   Send as SendIcon,
   Settings as SettingsIcon,
+  PersonAdd as PersonAddIcon,
+  People as PeopleIcon
 } from '@mui/icons-material';
 import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
@@ -77,12 +90,35 @@ const END_MEETING = gql`
   }
 `;
 
+const LEAVE_MEETING = gql`
+  mutation LeaveMeeting($meetingId: ID!) {
+    leaveMeeting(meetingId: $meetingId)
+  }
+`;
+
+const GET_WORKSPACE_MEMBERS = gql`
+  query GetWorkspaceMembers($workspaceId: ID!) {
+    getWorkspaceMembers(workspaceId: $workspaceId) {
+      _id
+      username
+      email
+      profilePicture
+    }
+  }
+`;
+
+const SEND_MEETING_INVITE = gql`
+  mutation SendMeetingInvite($meetingId: ID!, $userIds: [ID!]!) {
+    sendMeetingInvite(meetingId: $meetingId, userIds: $userIds)
+  }
+`;
+
 const VideoCall = () => {
   const { roomId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { socket } = useSocket();
-  const { activeMeeting, leaveMeeting } = useWorkspace();
+  const { socket, isConnected } = useSocket();
+  const { leaveMeeting, fetchMeetings } = useWorkspace();
   
   // State
   const [localStream, setLocalStream] = useState(null);
@@ -97,15 +133,38 @@ const VideoCall = () => {
   const [error, setError] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [previewStream, setPreviewStream] = useState(null);
+  const [participantsOpen, setParticipantsOpen] = useState(false);
+  const [showEndCallDialog, setShowEndCallDialog] = useState(false);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [workspaceMembers, setWorkspaceMembers] = useState([]);
+  const [selectedMembers, setSelectedMembers] = useState([]);
+  const [isExiting, setIsExiting] = useState(false);
+  const [notification, setNotification] = useState({ open: false, message: '', severity: 'info' });
   
   // Refs
   const userVideo = useRef();
   const peersRef = useRef({});
+  const localStreamRef = useRef();
+  const isCleanedUp = useRef(false);
   
   // Get meeting details
   const { loading, error: queryError, data } = useQuery(GET_MEETING_DETAILS, {
     variables: { meetingId: roomId },
     fetchPolicy: 'network-only',
+  });
+
+  // Get workspace members
+  const { data: membersData } = useQuery(GET_WORKSPACE_MEMBERS, {
+    variables: { workspaceId: data?.getMeetingDetails?.workspaceId },
+    skip: !data?.getMeetingDetails?.workspaceId,
+    onCompleted: (data) => {
+      if (data?.getWorkspaceMembers) {
+        setWorkspaceMembers(data.getWorkspaceMembers.filter(
+          member => member._id !== user?._id && 
+          !participants.some(p => p._id === member._id)
+        ));
+      }
+    }
   });
   
   // Join meeting mutation
@@ -114,9 +173,89 @@ const VideoCall = () => {
   // End meeting mutation
   const [endMeeting] = useMutation(END_MEETING);
   
+  // Leave meeting mutation
+  const [leaveMeetingMutation] = useMutation(LEAVE_MEETING);
+
+  // Send meeting invite mutation
+  const [sendMeetingInvite, { loading: inviteLoading }] = useMutation(SEND_MEETING_INVITE);
+  
+  // Get participants from meeting data
+  const meeting = data?.getMeetingDetails;
+  const participants = meeting?.participants || [];
+  
+  // Function to clean up media tracks and connections
+  const cleanupMedia = () => {
+    if (isCleanedUp.current) return;
+    
+    console.log('Cleaning up media and connections');
+    
+    // Stop all tracks in local stream
+    if (localStream) {
+      localStream.getTracks().forEach(track => {
+        try {
+          track.stop();
+          console.log(`Stopped local ${track.kind} track`);
+        } catch (err) {
+          console.error(`Error stopping ${track.kind} track:`, err);
+        }
+      });
+      setLocalStream(null);
+    }
+    
+    // Stop all tracks in screen share stream
+    if (screenStream) {
+      screenStream.getTracks().forEach(track => {
+        try {
+          track.stop();
+          console.log(`Stopped screen ${track.kind} track`);
+        } catch (err) {
+          console.error(`Error stopping screen ${track.kind} track:`, err);
+        }
+      });
+      setScreenStream(null);
+    }
+    
+    // Destroy all peer connections
+    Object.values(peersRef.current).forEach(({ peer }) => {
+      if (peer) {
+        try {
+          peer.destroy();
+        } catch (err) {
+          console.error('Error destroying peer:', err);
+        }
+      }
+    });
+    
+    isCleanedUp.current = true;
+  };
+  
+  // Handle navigation and reload
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      cleanupMedia();
+      e.returnValue = '';
+      return '';
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+  
+  // Clean up on unmount
+  useEffect(() => {
+    return () => {
+      // Final cleanup before component is unmounted
+      cleanupMedia();
+      leaveMeeting();
+    };
+  }, [leaveMeeting]);
+  
   // Initialize call
   useEffect(() => {
-    if (data?.getMeetingDetails && socket) {
+    if (data?.getMeetingDetails && socket && isConnected && !isExiting && !isCleanedUp.current) {
       const initCall = async () => {
         try {
           // Join meeting
@@ -124,17 +263,27 @@ const VideoCall = () => {
             variables: { meetingId: roomId },
           });
           
-          // Get user media
+          // Get user media with explicit constraints
           const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user'
+            },
             audio: true,
           });
           
+          // Explicitly set the stream to the video element
           if (userVideo.current) {
             userVideo.current.srcObject = stream;
+            // Force play the video
+            userVideo.current.play().catch(err => {
+              console.error("Error playing video:", err);
+            });
           }
           
           setLocalStream(stream);
+          localStreamRef.current = stream;
           
           // Join room
           socket.emit('join-room', {
@@ -149,29 +298,6 @@ const VideoCall = () => {
           socket.on('receiving-returned-signal', handleReceivingReturnedSignal);
           socket.on('chat-message', handleChatMessage);
           socket.on('existing-peers', handleExistingPeers);
-          
-          // Clean up
-          return () => {
-            stream.getTracks().forEach(track => track.stop());
-            
-            Object.values(peersRef.current).forEach(({ peer }) => {
-              if (peer) peer.destroy();
-            });
-            
-            socket.off('user-joined');
-            socket.off('user-left');
-            socket.off('receiving-signal');
-            socket.off('receiving-returned-signal');
-            socket.off('chat-message');
-            socket.off('existing-peers');
-            
-            socket.emit('leave-room', {
-              roomId,
-              userId: user._id,
-            });
-            
-            leaveMeeting();
-          };
         } catch (err) {
           console.error('Error initializing call:', err);
           setError(err);
@@ -179,37 +305,54 @@ const VideoCall = () => {
       };
       
       initCall();
+      
+      // Return cleanup for this effect
+      return () => {
+        // Remove socket listeners
+        if (socket) {
+          socket.off('user-joined');
+          socket.off('user-left');
+          socket.off('receiving-signal');
+          socket.off('receiving-returned-signal');
+          socket.off('chat-message');
+          socket.off('existing-peers');
+        }
+      };
     }
-  }, [data, socket, roomId, user, joinMeeting]);
+  }, [data, socket, isConnected, roomId, user, joinMeeting, isExiting]);
   
   // Handle existing peers in room
   const handleExistingPeers = ({ peers }) => {
     peers.forEach(peerId => {
-      const peer = createPeer(peerId, user._id, localStream);
-      peersRef.current[peerId] = {
-        peer,
-        userId: peerId,
-      };
-      
-      setPeers(prev => ({
-        ...prev,
-        [peerId]: peer,
-      }));
+      if (localStreamRef.current) {
+        const peer = createPeer(peerId, user._id, localStreamRef.current);
+        peersRef.current[peerId] = {
+          peer,
+          userId: peerId,
+        };
+        
+        setPeers(prev => ({
+          ...prev,
+          [peerId]: peer,
+        }));
+      }
     });
   };
   
   // Handle new user joined
   const handleUserJoined = ({ userId }) => {
-    const peer = createPeer(userId, user._id, localStream);
-    peersRef.current[userId] = {
-      peer,
-      userId,
-    };
-    
-    setPeers(prev => ({
-      ...prev,
-      [userId]: peer,
-    }));
+    if (localStream) {
+      const peer = createPeer(userId, user._id, localStream);
+      peersRef.current[userId] = {
+        peer,
+        userId,
+      };
+      
+      setPeers(prev => ({
+        ...prev,
+        [userId]: peer,
+      }));
+    }
   };
   
   // Handle user left
@@ -228,16 +371,18 @@ const VideoCall = () => {
   
   // Handle receiving signal
   const handleReceivingSignal = ({ userId, signal }) => {
-    const peer = addPeer(userId, signal, localStream);
-    peersRef.current[userId] = {
-      peer,
-      userId,
-    };
-    
-    setPeers(prev => ({
-      ...prev,
-      [userId]: peer,
-    }));
+    if (localStream) {
+      const peer = addPeer(userId, signal, localStream);
+      peersRef.current[userId] = {
+        peer,
+        userId,
+      };
+      
+      setPeers(prev => ({
+        ...prev,
+        [userId]: peer,
+      }));
+    }
   };
   
   // Handle receiving returned signal
@@ -256,11 +401,13 @@ const VideoCall = () => {
     });
     
     peer.on('signal', signal => {
-      socket.emit('sending-signal', {
-        receiverId,
-        senderId,
-        signal,
-      });
+      if (socket && socket.connected) {
+        socket.emit('sending-signal', {
+          receiverId,
+          senderId,
+          signal,
+        });
+      }
     });
     
     return peer;
@@ -275,16 +422,59 @@ const VideoCall = () => {
     });
     
     peer.on('signal', signal => {
-      socket.emit('returning-signal', {
-        receiverId: senderId,
-        senderId: user._id,
-        signal,
-      });
+      if (socket && socket.connected) {
+        socket.emit('returning-signal', {
+          receiverId: senderId,
+          senderId: user._id,
+          signal,
+        });
+      }
     });
     
     peer.signal(incomingSignal);
     
     return peer;
+  };
+
+  // Handle sending invites to meeting
+  const handleSendInvites = async () => {
+    if (!selectedMembers.length) return;
+    
+    try {
+      await sendMeetingInvite({
+        variables: {
+          meetingId: roomId,
+          userIds: selectedMembers
+        }
+      });
+      
+      setInviteDialogOpen(false);
+      setSelectedMembers([]);
+      
+      // Show success notification
+      setNotification({
+        open: true,
+        message: 'Invitations sent successfully',
+        severity: 'success'
+      });
+      
+      // Refresh the workspace members list to remove invited users
+      if (membersData?.getWorkspaceMembers) {
+        const updatedMembers = membersData.getWorkspaceMembers.filter(
+          member => member._id !== user?._id && 
+          !participants.some(p => p._id === member._id) &&
+          !selectedMembers.includes(member._id)
+        );
+        setWorkspaceMembers(updatedMembers);
+      }
+    } catch (err) {
+      console.error('Error sending invites:', err);
+      setNotification({
+        open: true,
+        message: err.message || 'Failed to send invitations',
+        severity: 'error'
+      });
+    }
   };
 
   // Apply device settings
@@ -299,9 +489,12 @@ const VideoCall = () => {
       Object.values(peersRef.current).forEach(({ peer }) => {
         if (peer) {
           newStream.getTracks().forEach(track => {
-            const sender = peer._senders.find(s => s.track.kind === track.kind);
+            const senders = peer._senders || [];
+            const sender = senders.find(s => s.track?.kind === track.kind);
             if (sender) {
-              sender.replaceTrack(track);
+              sender.replaceTrack(track).catch(err => {
+                console.error(`Error replacing ${track.kind} track:`, err);
+              });
             }
           });
         }
@@ -318,6 +511,7 @@ const VideoCall = () => {
       }
       
       setLocalStream(newStream);
+      localStreamRef.current = newStream;
       
     } catch (err) {
       console.error('Error applying device settings:', err);
@@ -328,7 +522,8 @@ const VideoCall = () => {
   // Toggle audio
   const toggleAudio = () => {
     if (localStream) {
-      localStream.getAudioTracks().forEach(track => {
+      const audioTracks = localStream.getAudioTracks();
+      audioTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
       setIsMuted(!isMuted);
@@ -338,7 +533,8 @@ const VideoCall = () => {
   // Toggle video
   const toggleVideo = () => {
     if (localStream) {
-      localStream.getVideoTracks().forEach(track => {
+      const videoTracks = localStream.getVideoTracks();
+      videoTracks.forEach(track => {
         track.enabled = !track.enabled;
       });
       setIsVideoOff(!isVideoOff);
@@ -349,41 +545,56 @@ const VideoCall = () => {
   const toggleScreenSharing = async () => {
     if (!isScreenSharing) {
       try {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: 'always'
+          },
+          audio: false
         });
+        
+        // Get the video track from screen capture
+        const screenVideoTrack = stream.getVideoTracks()[0];
         
         // Replace video track with screen track in all peer connections
         Object.values(peersRef.current).forEach(({ peer }) => {
           if (peer) {
-            const sender = peer._senders.find(s => s.track.kind === 'video');
+            const senders = peer._senders || [];
+            const sender = senders.find(s => s.track?.kind === 'video');
             if (sender) {
-              sender.replaceTrack(screenStream.getVideoTracks()[0]);
+              sender.replaceTrack(screenVideoTrack).catch(err => {
+                console.error('Error replacing video track with screen:', err);
+              });
             }
           }
         });
         
-        // Update local video
+        // Update local video display
         if (userVideo.current) {
-          userVideo.current.srcObject = screenStream;
+          userVideo.current.srcObject = stream;
         }
         
-        setScreenStream(screenStream);
+        // Save screen stream for cleanup
+        setScreenStream(stream);
         setIsScreenSharing(true);
         
-        // Handle screen share ended by user
-        screenStream.getVideoTracks()[0].onended = () => {
+        // Handle screen share ended by user (browser UI)
+        screenVideoTrack.onended = () => {
           stopScreenSharing();
         };
         
-        // Notify others
-        socket.emit('start-screen-share', {
-          roomId,
-          userId: user._id,
-        });
+        // Notify others through socket
+        if (socket && socket.connected) {
+          socket.emit('start-screen-share', {
+            roomId,
+            userId: user._id,
+          });
+        }
       } catch (err) {
         console.error('Error sharing screen:', err);
-        setError(err);
+        setError({
+          name: 'Screen Sharing Error',
+          message: err.message || 'Failed to share screen'
+        });
       }
     } else {
       stopScreenSharing();
@@ -393,57 +604,94 @@ const VideoCall = () => {
   // Stop screen sharing
   const stopScreenSharing = () => {
     if (screenStream) {
-      screenStream.getTracks().forEach(track => track.stop());
-      
-      // Restore video track in all peer connections
-      Object.values(peersRef.current).forEach(({ peer }) => {
-        if (peer) {
-          const sender = peer._senders.find(s => s.track.kind === 'video');
-          if (sender && localStream?.getVideoTracks()[0]) {
-            sender.replaceTrack(localStream.getVideoTracks()[0]);
-          }
-        }
+      // Stop all tracks in the screen stream
+      screenStream.getTracks().forEach(track => {
+        track.stop();
       });
       
-      // Restore local video
-      if (userVideo.current && localStream) {
-        userVideo.current.srcObject = localStream;
+      // If local stream exists, restore it
+      if (localStream) {
+        // Get the original video track
+        const videoTrack = localStream.getVideoTracks()[0];
+        
+        // Replace screen track with original video track in all peers
+        if (videoTrack) {
+          Object.values(peersRef.current).forEach(({ peer }) => {
+            if (peer) {
+              const senders = peer._senders || [];
+              const sender = senders.find(s => s.track?.kind === 'video');
+              if (sender) {
+                sender.replaceTrack(videoTrack).catch(err => {
+                  console.error('Error replacing screen with video track:', err);
+                });
+              }
+            }
+          });
+          
+          // Restore local video display
+          if (userVideo.current) {
+            userVideo.current.srcObject = localStream;
+          }
+        }
       }
       
       setScreenStream(null);
       setIsScreenSharing(false);
       
-      // Notify others
-      socket.emit('stop-screen-share', {
-        roomId,
-        userId: user._id,
-      });
+      // Notify others via socket
+      if (socket && socket.connected) {
+        socket.emit('stop-screen-share', {
+          roomId,
+          userId: user._id,
+        });
+      }
     }
   };
 
   // End call
   const handleEndCall = async () => {
+    setIsExiting(true);
+    
     try {
-      // Clean up streams
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
+      // First, ensure all tracks are stopped
+      cleanupMedia();
+      
+      // Record we're leaving (for participants) or ending (for host) the meeting
+      const isHost = meeting?.host?._id === user?._id;
+      
+      if (isHost) {
+        try {
+          await endMeeting({
+            variables: { meetingId: roomId }
+          });
+        } catch (endError) {
+          console.error('Error ending meeting (continuing with exit):', endError);
+        }
+      } else {
+        try {
+          await leaveMeetingMutation({
+            variables: { meetingId: roomId }
+          });
+        } catch (leaveError) {
+          console.error('Error leaving meeting (continuing with exit):', leaveError);
+        }
       }
       
-      if (screenStream) {
-        screenStream.getTracks().forEach(track => track.stop());
-      }
+      // Signal to the workspace context that we've left
+      leaveMeeting();
       
-      // End meeting if host
-      if (data?.getMeetingDetails?.host?._id === user?._id) {
-        await endMeeting({
-          variables: { meetingId: roomId },
-        });
-      }
+      // Refresh meetings list
+      fetchMeetings();
       
       // Navigate back to workspace
       navigate(`/workspace/${data?.getMeetingDetails?.workspaceId}`);
     } catch (err) {
       console.error('Error ending call:', err);
+      
+      // Even if there's an error with the backend, clean up media and force navigation
+      cleanupMedia();
+      leaveMeeting();
+      navigate(`/workspace/${data?.getMeetingDetails?.workspaceId}`);
     }
   };
   
@@ -454,7 +702,7 @@ const VideoCall = () => {
   
   // Send chat message
   const handleSendMessage = () => {
-    if (!messageInput.trim()) return;
+    if (!messageInput.trim() || !socket || !socket.connected) return;
     
     // Emit chat message event
     socket.emit('send-chat-message', {
@@ -505,8 +753,6 @@ const VideoCall = () => {
     );
   }
   
-  const meeting = data?.getMeetingDetails;
-  
   return (
     <Box sx={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#121212' }}>
       {/* Call Header */}
@@ -521,18 +767,28 @@ const VideoCall = () => {
         }}
       >
         <Typography variant="h6">{meeting?.title || 'Video Call'}</Typography>
-        <Button
-          variant="outlined"
-          startIcon={<ChatIcon />}
-          onClick={() => setChatOpen(true)}
-          sx={{ color: 'white', borderColor: 'rgba(255, 255, 255, 0.5)' }}
-        >
-          Chat
-        </Button>
+        <Box>
+          <Button
+            variant="outlined"
+            startIcon={<PeopleIcon />}
+            onClick={() => setParticipantsOpen(true)}
+            sx={{ color: 'white', borderColor: 'rgba(255, 255, 255, 0.5)', mr: 1 }}
+          >
+            Participants ({participants.length})
+          </Button>
+          <Button
+            variant="outlined"
+            startIcon={<ChatIcon />}
+            onClick={() => setChatOpen(true)}
+            sx={{ color: 'white', borderColor: 'rgba(255, 255, 255, 0.5)' }}
+          >
+            Chat
+          </Button>
+        </Box>
       </Box>
       
       {/* Video Grid */}
-      <Box sx={{ flexGrow: 1, p: 2, overflow: 'auto' }}>
+      <Box sx={{ flexGrow: 1, p: 2, overflow: 'auto', backgroundColor: '#1a1a1a' }}>
         <Grid container spacing={2}>
           {/* Local Video */}
           <Grid item xs={12} sm={6} md={4}>
@@ -542,6 +798,7 @@ const VideoCall = () => {
                 paddingTop: '56.25%', // 16:9 aspect ratio
                 backgroundColor: 'black',
                 overflow: 'hidden',
+                borderRadius: 1
               }}
             >
               <video
@@ -556,6 +813,8 @@ const VideoCall = () => {
                   width: '100%',
                   height: '100%',
                   objectFit: 'cover',
+                  zIndex: 0,
+                  backgroundColor: 'black'
                 }}
               />
               <Box
@@ -568,14 +827,25 @@ const VideoCall = () => {
                   padding: '4px 8px',
                   borderRadius: 1,
                   fontSize: '0.75rem',
+                  zIndex: 1
                 }}
               >
-                You {isMuted && '(Muted)'}
+                You {isMuted && '(Muted)'} {isVideoOff && '(Camera Off)'}
               </Box>
             </Paper>
           </Grid>
           
-          {/* Peer videos would go here - simplified for this example */}
+          {/* Peer videos */}
+          {Object.keys(peers).map(peerId => {
+            const participant = participants.find(p => p._id === peerId);
+            return (
+              <Grid item xs={12} sm={6} md={4} key={peerId}>
+                <PeerVideo peer={peers[peerId]} participant={participant} />
+              </Grid>
+            );
+          })}
+          
+          {/* Empty state for no other participants */}
           {Object.keys(peers).length === 0 && (
             <Grid item xs={12} sm={6} md={4}>
               <Paper
@@ -587,6 +857,7 @@ const VideoCall = () => {
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: 'white',
+                  borderRadius: 1
                 }}
               >
                 <Typography
@@ -596,9 +867,27 @@ const VideoCall = () => {
                     top: '50%',
                     left: '50%',
                     transform: 'translate(-50%, -50%)',
+                    textAlign: 'center',
+                    width: '80%'
                   }}
                 >
                   Waiting for others to join...
+                  <Button
+                    variant="outlined"
+                    startIcon={<PersonAddIcon />}
+                    onClick={() => setInviteDialogOpen(true)}
+                    size="small"
+                    sx={{ 
+                      mt: 2, 
+                      color: 'white', 
+                      borderColor: 'white',
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                      }
+                    }}
+                  >
+                    Invite Others
+                  </Button>
                 </Typography>
               </Paper>
             </Grid>
@@ -656,7 +945,20 @@ const VideoCall = () => {
         </IconButton>
         
         <IconButton
-          onClick={handleEndCall}
+          onClick={() => setInviteDialogOpen(true)}
+          sx={{
+            backgroundColor: 'primary.main',
+            color: 'white',
+            '&:hover': {
+              backgroundColor: 'primary.dark',
+            },
+          }}
+        >
+          <PersonAddIcon />
+        </IconButton>
+
+        <IconButton
+          onClick={() => setShowEndCallDialog(true)}
           sx={{
             backgroundColor: 'error.main',
             color: 'white',
@@ -786,6 +1088,182 @@ const VideoCall = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Participants Dialog */}
+      <Dialog
+        open={participantsOpen}
+        onClose={() => setParticipantsOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Participants ({participants.length})
+          <IconButton
+            onClick={() => setParticipantsOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <List>
+            {participants.map((participant) => (
+              <ListItem key={participant._id}>
+                <ListItemAvatar>
+                  <Avatar src={participant.profilePicture}>
+                    {participant.username.charAt(0).toUpperCase()}
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText 
+                  primary={
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {participant.username}
+                      {participant._id === meeting?.host?._id && (
+                        <Chip size="small" color="primary" label="Host" sx={{ ml: 1 }} />
+                      )}
+                      {participant._id === user._id && (
+                        <Chip size="small" variant="outlined" label="You" sx={{ ml: 1 }} />
+                      )}
+                    </Box>
+                  } 
+                />
+              </ListItem>
+            ))}
+            {participants.length === 0 && (
+              <ListItem>
+                <ListItemText primary="No participants yet" />
+              </ListItem>
+            )}
+          </List>
+          
+          <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Button
+              variant="contained"
+              startIcon={<PersonAddIcon />}
+              onClick={() => {
+                setParticipantsOpen(false);
+                setInviteDialogOpen(true);
+              }}
+            >
+              Invite More People
+            </Button>
+          </Box>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Dialog */}
+      <Dialog
+        open={inviteDialogOpen}
+        onClose={() => setInviteDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Invite to Meeting
+          <IconButton
+            onClick={() => setInviteDialogOpen(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        
+        <DialogContent dividers>
+          <Typography variant="body2" paragraph>
+            Select team members to invite to this meeting:
+          </Typography>
+          
+          {workspaceMembers.length > 0 ? (
+            <List>
+              {workspaceMembers.map((member) => (
+                <ListItem key={member._id}>
+                  <ListItemAvatar>
+                    <Avatar src={member.profilePicture}>
+                      {member.username.charAt(0).toUpperCase()}
+                    </Avatar>
+                  </ListItemAvatar>
+                  <ListItemText 
+                    primary={member.username} 
+                    secondary={member.email} 
+                  />
+                  <Checkbox
+                    edge="end"
+                    checked={selectedMembers.includes(member._id)}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedMembers([...selectedMembers, member._id]);
+                      } else {
+                        setSelectedMembers(selectedMembers.filter(id => id !== member._id));
+                      }
+                    }}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          ) : (
+            <Box sx={{ textAlign: 'center', py: 3 }}>
+              <Typography color="text.secondary">
+                No other workspace members available to invite.
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+        
+        <DialogActions>
+          <Button onClick={() => setInviteDialogOpen(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="contained"
+            onClick={handleSendInvites}
+            disabled={selectedMembers.length === 0 || inviteLoading}
+            startIcon={inviteLoading ? <CircularProgress size={20} /> : <PersonAddIcon />}
+          >
+            {inviteLoading 
+              ? 'Sending Invites...' 
+              : `Send Invites${selectedMembers.length ? ` (${selectedMembers.length})` : ''}`
+            }
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* End Call Confirmation Dialog */}
+      <Dialog
+        open={showEndCallDialog}
+        onClose={() => setShowEndCallDialog(false)}
+      >
+        <DialogTitle>End Video Call</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to end this call? Your camera and microphone will be turned off.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setShowEndCallDialog(false)}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={() => {
+              setShowEndCallDialog(false);
+              handleEndCall();
+            }} 
+            color="error" 
+            variant="contained" 
+            autoFocus
+          >
+            End Call
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Error Dialog */}
       <VideoError
         open={!!error}
@@ -805,7 +1283,99 @@ const VideoCall = () => {
         previewStream={previewStream}
         setPreviewStream={setPreviewStream}
       />
+      
+      {/* Notification Snackbar */}
+      <Snackbar 
+        open={notification.open} 
+        autoHideDuration={6000} 
+        onClose={() => setNotification({...notification, open: false})}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setNotification({...notification, open: false})} 
+          severity={notification.severity}
+          variant="filled"
+        >
+          {notification.message}
+        </Alert>
+      </Snackbar>
     </Box>
+  );
+};
+
+// Peer Video Component
+const PeerVideo = ({ peer, participant }) => {
+  const videoRef = useRef();
+
+  useEffect(() => {
+    if (!peer) return;
+
+    peer.on('stream', (stream) => {
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        
+        // Force play the video
+        videoRef.current.play().catch(err => {
+          console.error("Error playing peer video:", err);
+        });
+      }
+    });
+
+    return () => {
+      if (videoRef.current?.srcObject) {
+        const tracks = videoRef.current.srcObject.getTracks();
+        tracks.forEach(track => {
+          try {
+            track.stop();
+          } catch (err) {
+            console.error('Error stopping peer video track:', err);
+          }
+        });
+        videoRef.current.srcObject = null;
+      }
+    };
+  }, [peer]);
+
+  return (
+    <Paper
+      sx={{
+        position: 'relative',
+        paddingTop: '56.25%', // 16:9 aspect ratio
+        backgroundColor: 'black',
+        overflow: 'hidden',
+        borderRadius: 1
+      }}
+    >
+      <video
+        ref={videoRef}
+        autoPlay
+        playsInline
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          zIndex: 0
+        }}
+      />
+      <Box
+        sx={{
+          position: 'absolute',
+          bottom: 8,
+          left: 8,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          color: 'white',
+          padding: '4px 8px',
+          borderRadius: 1,
+          fontSize: '0.75rem',
+          zIndex: 1
+        }}
+      >
+        {participant?.username || 'Participant'}
+      </Box>
+    </Paper>
   );
 };
 

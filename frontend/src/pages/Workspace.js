@@ -1,4 +1,4 @@
-// src/pages/Workspace.js (Updated)
+// src/pages/Workspace.js
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, gql } from '@apollo/client';
@@ -21,14 +21,16 @@ import {
   CircularProgress,
   IconButton,
   Tabs,
-  Tab
+  Tab,
+  Alert
 } from '@mui/material';
 import { 
   Add as AddIcon, 
   Chat as ChatIcon, 
   Task as TaskIcon, 
   VideoCall as VideoCallIcon,
-  Group as GroupIcon
+  Group as GroupIcon,
+  Event as EventIcon
 } from '@mui/icons-material';
 import MainLayout from '../layouts/MainLayout';
 import { useWorkspace } from '../context/WorkspaceContext';
@@ -85,7 +87,7 @@ const Workspace = () => {
   const { workspaceId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { setActiveWorkspace } = useWorkspace();
+  const { setActiveWorkspace, fetchMeetings } = useWorkspace();
   const [activeTab, setActiveTab] = useState(0);
   const [channelDialogOpen, setChannelDialogOpen] = useState(false);
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
@@ -98,18 +100,43 @@ const Workspace = () => {
     title: '',
     description: '',
   });
+  const [error, setError] = useState(null);
 
   // Get workspace data
-  const { loading, error, data, refetch } = useQuery(GET_WORKSPACE_DATA, {
+  const { loading, error: queryError, data, refetch } = useQuery(GET_WORKSPACE_DATA, {
     variables: { workspaceId },
     fetchPolicy: 'network-only',
+    onError: (err) => {
+      console.error('Error fetching workspace:', err);
+      setError(err.message);
+    }
   });
 
   // Create channel mutation
-  const [createChannel] = useMutation(CREATE_CHANNEL);
+  const [createChannel, { loading: channelLoading }] = useMutation(CREATE_CHANNEL, {
+    onCompleted: () => {
+      handleCloseChannelDialog();
+      refetch();
+    },
+    onError: (err) => {
+      console.error('Error creating channel:', err);
+      setError(err.message);
+    }
+  });
 
   // Create meeting mutation
-  const [createMeeting] = useMutation(CREATE_MEETING);
+  const [createMeeting, { loading: meetingLoading }] = useMutation(CREATE_MEETING, {
+    onCompleted: (data) => {
+      handleCloseMeetingDialog();
+      if (data?.createMeeting?._id) {
+        navigate(`/video/${data.createMeeting._id}`);
+      }
+    },
+    onError: (err) => {
+      console.error('Error creating meeting:', err);
+      setError(err.message);
+    }
+  });
 
   // Set active workspace when data changes
   useEffect(() => {
@@ -126,6 +153,7 @@ const Workspace = () => {
   // Handle channel dialog
   const handleOpenChannelDialog = () => {
     setChannelDialogOpen(true);
+    setError(null);
   };
 
   const handleCloseChannelDialog = () => {
@@ -156,17 +184,15 @@ const Workspace = () => {
           },
         },
       });
-
-      handleCloseChannelDialog();
-      refetch();
     } catch (err) {
-      console.error('Error creating channel:', err);
+      // Error handled in mutation onError
     }
   };
 
   // Handle meeting dialog
   const handleOpenMeetingDialog = () => {
     setMeetingDialogOpen(true);
+    setError(null);
   };
 
   const handleCloseMeetingDialog = () => {
@@ -188,7 +214,7 @@ const Workspace = () => {
     if (!newMeeting.title) return;
 
     try {
-      const { data } = await createMeeting({
+      await createMeeting({
         variables: {
           input: {
             ...newMeeting,
@@ -198,14 +224,8 @@ const Workspace = () => {
           },
         },
       });
-
-      handleCloseMeetingDialog();
-      
-      if (data?.createMeeting?._id) {
-        navigate(`/video/${data.createMeeting._id}`);
-      }
     } catch (err) {
-      console.error('Error creating meeting:', err);
+      // Error handled in mutation onError
     }
   };
 
@@ -218,6 +238,18 @@ const Workspace = () => {
   const handleTaskBoardClick = () => {
     navigate(`/workspace/${workspaceId}/tasks`);
   };
+  
+  // Handle meetings click
+  const handleMeetingsClick = () => {
+    navigate(`/workspace/${workspaceId}/meetings`);
+  };
+
+  // If workspace doesn't exist or error occurred, navigate to dashboard
+  useEffect(() => {
+    if (queryError) {
+      navigate('/dashboard');
+    }
+  }, [queryError, navigate]);
 
   if (loading) {
     return (
@@ -233,9 +265,12 @@ const Workspace = () => {
     return (
       <MainLayout>
         <Box sx={{ p: 3 }}>
-          <Typography color="error">
-            Error loading workspace: {error.message}
-          </Typography>
+          <Alert severity="error" sx={{ mb: 3 }}>
+            {error}
+          </Alert>
+          <Button variant="contained" onClick={() => navigate('/dashboard')}>
+            Return to Dashboard
+          </Button>
         </Box>
       </MainLayout>
     );
@@ -374,6 +409,38 @@ const Workspace = () => {
                           backgroundColor: 'action.hover',
                         },
                       }}
+                      onClick={handleMeetingsClick}
+                    >
+                      <IconButton
+                        sx={{
+                          backgroundColor: 'secondary.light',
+                          color: 'secondary.contrastText',
+                          mb: 1,
+                        }}
+                      >
+                        <EventIcon />
+                      </IconButton>
+                      <Typography variant="subtitle1">Video Meetings</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        View or start team meetings
+                      </Typography>
+                    </Paper>
+                  </Grid>
+                  <Grid item xs={12} sm={6} md={4}>
+                    <Paper
+                      sx={{
+                        p: 2,
+                        textAlign: 'center',
+                        height: '100%',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        '&:hover': {
+                          backgroundColor: 'action.hover',
+                        },
+                      }}
                       onClick={handleOpenMeetingDialog}
                     >
                       <IconButton
@@ -385,9 +452,9 @@ const Workspace = () => {
                       >
                         <VideoCallIcon />
                       </IconButton>
-                      <Typography variant="subtitle1">Video Call</Typography>
+                      <Typography variant="subtitle1">Quick Video Call</Typography>
                       <Typography variant="body2" color="text.secondary">
-                        Start a team meeting
+                        Start an instant team meeting
                       </Typography>
                     </Paper>
                   </Grid>
@@ -415,6 +482,11 @@ const Workspace = () => {
       >
         <DialogTitle>Create New Channel</DialogTitle>
         <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <TextField
             autoFocus
             margin="dense"
@@ -447,9 +519,10 @@ const Workspace = () => {
           <Button
             onClick={handleCreateChannel}
             variant="contained"
-            disabled={!newChannel.name}
+            disabled={!newChannel.name || channelLoading}
+            startIcon={channelLoading ? <CircularProgress size={20} /> : null}
           >
-            Create
+            {channelLoading ? "Creating..." : "Create"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -463,6 +536,11 @@ const Workspace = () => {
       >
         <DialogTitle>Start New Meeting</DialogTitle>
         <DialogContent>
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
           <TextField
             autoFocus
             margin="dense"
@@ -489,15 +567,19 @@ const Workspace = () => {
             value={newMeeting.description}
             onChange={handleMeetingChange}
           />
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+            Starting a meeting will immediately create a video call that you can invite team members to join.
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseMeetingDialog}>Cancel</Button>
           <Button
             onClick={handleCreateMeeting}
             variant="contained"
-            disabled={!newMeeting.title}
+            disabled={!newMeeting.title || meetingLoading}
+            startIcon={meetingLoading ? <CircularProgress size={20} /> : null}
           >
-            Start Meeting
+            {meetingLoading ? "Starting..." : "Start Meeting"}
           </Button>
         </DialogActions>
       </Dialog>

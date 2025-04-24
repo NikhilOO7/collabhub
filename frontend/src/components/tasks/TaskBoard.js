@@ -1,34 +1,40 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Typography,
-  Paper,
-  Button,
-  Chip,
+import { useParams } from 'react-router-dom';
+import { useQuery, useMutation, gql } from '@apollo/client';
+import { 
+  Box, 
+  Typography, 
+  Grid, 
+  Paper, 
+  Button, 
+  TextField, 
+  Dialog,
+  DialogTitle, 
+  DialogContent, 
+  DialogActions, 
+  FormControl, 
+  InputLabel, 
+  Select, 
+  MenuItem, 
+  CircularProgress,
   Avatar,
+  Chip,
   IconButton,
   Menu,
-  MenuItem,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Grid,
-  Select,
-  FormControl,
-  InputLabel,
-  CircularProgress,
+  Alert
 } from '@mui/material';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-import {
-  Add as AddIcon,
+import { 
+  Add as AddIcon, 
   MoreVert as MoreVertIcon,
-  PriorityHigh as HighPriorityIcon,
+  ArrowForward as ArrowForwardIcon,
+  ArrowBack as ArrowBackIcon,
+  HighPriority as HighPriorityIcon,
   Flag as MediumPriorityIcon,
   LowPriority as LowPriorityIcon,
 } from '@mui/icons-material';
-import { useQuery, useMutation, gql } from '@apollo/client';
+import MainLayout from '../layouts/MainLayout';
+import { useAuth } from '../context/AuthContext';
+import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 
 // GraphQL Queries and Mutations
 const GET_WORKSPACE_TASKS = gql`
@@ -94,92 +100,93 @@ const UPDATE_TASK = gql`
   }
 `;
 
-const TaskBoard = ({ workspaceId }) => {
+const DELETE_TASK = gql`
+  mutation DeleteTask($id: ID!) {
+    deleteTask(id: $id)
+  }
+`;
+
+const TaskBoard = () => {
+  const { workspaceId } = useParams();
+  const { user } = useAuth();
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
-  const [taskMenuAnchorEl, setTaskMenuAnchorEl] = useState(null);
+  const [menuAnchorEl, setMenuAnchorEl] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
-  const [newTask, setNewTask] = useState({
+  const [error, setError] = useState(null);
+  const [taskForm, setTaskForm] = useState({
     title: '',
     description: '',
     status: 'backlog',
     priority: 'medium',
     assignees: [],
-    dueDate: null,
+    dueDate: '',
   });
 
-  // Query tasks and members
-  const { data, loading, error } = useQuery(GET_WORKSPACE_TASKS, {
-    variables: {
-      workspaceId,
-    },
+  // Get workspace tasks
+  const { loading, error: queryError, data, refetch } = useQuery(GET_WORKSPACE_TASKS, {
+    variables: { workspaceId },
     fetchPolicy: 'network-only',
-  });
-
-  // Mutations
-  const [createTaskMutation, { loading: createLoading }] = useMutation(CREATE_TASK, {
-    refetchQueries: [{ query: GET_WORKSPACE_TASKS, variables: { workspaceId } }],
-  });
-
-  const [updateTaskMutation, { loading: updateLoading }] = useMutation(UPDATE_TASK, {
-    refetchQueries: [{ query: GET_WORKSPACE_TASKS, variables: { workspaceId } }],
-  });
-
-  // Group tasks by status
-  const getTasksByStatus = (status) => {
-    if (!data?.getWorkspaceTasks) return [];
-    return data.getWorkspaceTasks.filter((task) => task.status === status);
-  };
-
-  // Handle drag end
-  const onDragEnd = async (result) => {
-    const { destination, source, draggableId } = result;
-
-    // If no destination or same destination, do nothing
-    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
-      return;
+    onError: (err) => {
+      setError(err.message);
     }
+  });
 
-    // Find the task
-    const task = data.getWorkspaceTasks.find((t) => t._id === draggableId);
-
-    // Update task status
-    try {
-      await updateTaskMutation({
-        variables: {
-          id: task._id,
-          input: {
-            ...task,
-            status: destination.droppableId,
-            assignees: task.assignees.map((a) => a._id),
-          },
-        },
-      });
-    } catch (err) {
-      console.error('Error updating task status:', err);
+  // Create task mutation
+  const [createTask, { loading: createLoading }] = useMutation(CREATE_TASK, {
+    onCompleted: () => {
+      refetch();
+      handleCloseTaskDialog();
+    },
+    onError: (err) => {
+      setError(err.message);
     }
-  };
+  });
 
-  // Task dialog handlers
+  // Update task mutation
+  const [updateTask, { loading: updateLoading }] = useMutation(UPDATE_TASK, {
+    onCompleted: () => {
+      refetch();
+      handleCloseTaskDialog();
+    },
+    onError: (err) => {
+      setError(err.message);
+    }
+  });
+
+  // Delete task mutation
+  const [deleteTask, { loading: deleteLoading }] = useMutation(DELETE_TASK, {
+    onCompleted: () => {
+      refetch();
+      handleCloseTaskDialog();
+    },
+    onError: (err) => {
+      setError(err.message);
+    }
+  });
+
+  // Handle task dialog
   const handleOpenTaskDialog = (task = null) => {
+    setError(null);
+    
     if (task) {
       setSelectedTask(task);
-      setNewTask({
+      setTaskForm({
         title: task.title,
-        description: task.description,
+        description: task.description || '',
         status: task.status,
         priority: task.priority,
-        assignees: task.assignees.map((a) => a._id),
-        dueDate: task.dueDate,
+        assignees: task.assignees.map(a => a._id),
+        dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
       });
     } else {
       setSelectedTask(null);
-      setNewTask({
+      setTaskForm({
         title: '',
         description: '',
         status: 'backlog',
         priority: 'medium',
         assignees: [],
-        dueDate: null,
+        dueDate: '',
       });
     }
     setTaskDialogOpen(true);
@@ -187,90 +194,155 @@ const TaskBoard = ({ workspaceId }) => {
 
   const handleCloseTaskDialog = () => {
     setTaskDialogOpen(false);
+    setSelectedTask(null);
   };
 
-  // Task menu handlers
-  const handleTaskMenuOpen = (event, task) => {
+  // Handle menu
+  const handleOpenMenu = (event, task) => {
     event.stopPropagation();
     setSelectedTask(task);
-    setTaskMenuAnchorEl(event.currentTarget);
+    setMenuAnchorEl(event.currentTarget);
   };
 
-  const handleTaskMenuClose = () => {
-    setTaskMenuAnchorEl(null);
+  const handleCloseMenu = () => {
+    setMenuAnchorEl(null);
   };
 
-  // Form change handlers
-  const handleTaskFormChange = (e) => {
-    setNewTask({
-      ...newTask,
+  // Handle form change
+  const handleFormChange = (e) => {
+    setTaskForm({
+      ...taskForm,
       [e.target.name]: e.target.value,
     });
   };
 
-  const handleAssigneeChange = (e) => {
-    setNewTask({
-      ...newTask,
+  // Handle multiple select change
+  const handleMultipleSelectChange = (e) => {
+    setTaskForm({
+      ...taskForm,
       assignees: e.target.value,
     });
   };
 
-  // Save task
+  // Handle save task
   const handleSaveTask = async () => {
-    if (!newTask.title) return;
+    setError(null);
+    
+    if (!taskForm.title.trim()) {
+      setError("Task title is required");
+      return;
+    }
+
+    const taskInput = {
+      title: taskForm.title,
+      description: taskForm.description,
+      workspaceId,
+      status: taskForm.status,
+      priority: taskForm.priority,
+      assignees: taskForm.assignees,
+      dueDate: taskForm.dueDate || null,
+    };
 
     try {
       if (selectedTask) {
-        // Update existing task
-        await updateTaskMutation({
+        // Update task
+        await updateTask({
           variables: {
             id: selectedTask._id,
-            input: {
-              ...newTask,
-              workspaceId,
-            },
+            input: taskInput,
           },
         });
       } else {
-        // Create new task
-        await createTaskMutation({
+        // Create task
+        await createTask({
           variables: {
-            input: {
-              ...newTask,
-              workspaceId,
-            },
+            input: taskInput,
           },
         });
       }
-
-      handleCloseTaskDialog();
     } catch (err) {
+      // Error is handled in mutation callbacks
       console.error('Error saving task:', err);
     }
   };
 
-  // Delete task
+  // Handle delete task
   const handleDeleteTask = async () => {
-    // Implement delete task mutation
-    handleTaskMenuClose();
-    handleCloseTaskDialog();
-  };
+    if (!selectedTask) return;
 
-  // Get priority icon
-  const getPriorityIcon = (priority) => {
-    switch (priority) {
-      case 'high':
-        return <HighPriorityIcon color="error" />;
-      case 'medium':
-        return <MediumPriorityIcon color="warning" />;
-      case 'low':
-        return <LowPriorityIcon color="success" />;
-      default:
-        return <MediumPriorityIcon color="warning" />;
+    try {
+      await deleteTask({
+        variables: {
+          id: selectedTask._id,
+        },
+      });
+      handleCloseMenu();
+    } catch (err) {
+      console.error('Error deleting task:', err);
     }
   };
 
-  // Get color for priority
+  // Handle move task
+  const handleMoveTask = async (task, newStatus) => {
+    try {
+      await updateTask({
+        variables: {
+          id: task._id,
+          input: {
+            title: task.title,
+            description: task.description,
+            workspaceId,
+            status: newStatus,
+            priority: task.priority,
+            assignees: task.assignees.map(a => a._id),
+            dueDate: task.dueDate,
+          },
+        },
+      });
+    } catch (err) {
+      console.error('Error moving task:', err);
+      setError(err.message);
+    }
+  };
+
+  // Handle drag and drop
+  const onDragEnd = async (result) => {
+    const { destination, source, draggableId } = result;
+    
+    // Drop outside any droppable or same position
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return;
+    }
+    
+    // Find the task
+    const task = data?.getWorkspaceTasks.find(t => t._id === draggableId);
+    if (!task) return;
+    
+    // Update task status
+    await handleMoveTask(task, destination.droppableId);
+  };
+
+  // Get tasks by status
+  const getTasksByStatus = (status) => {
+    if (!data?.getWorkspaceTasks) return [];
+    return data.getWorkspaceTasks.filter(task => task.status === status);
+  };
+
+  // Get next status
+  const getNextStatus = (currentStatus) => {
+    const statuses = ['backlog', 'in-progress', 'review', 'done'];
+    const currentIndex = statuses.indexOf(currentStatus);
+    return currentIndex < statuses.length - 1 ? statuses[currentIndex + 1] : null;
+  };
+
+  // Get previous status
+  const getPreviousStatus = (currentStatus) => {
+    const statuses = ['backlog', 'in-progress', 'review', 'done'];
+    const currentIndex = statuses.indexOf(currentStatus);
+    return currentIndex > 0 ? statuses[currentIndex - 1] : null;
+  };
+
+  // Priority colors
   const getPriorityColor = (priority) => {
     switch (priority) {
       case 'high':
@@ -284,253 +356,317 @@ const TaskBoard = ({ workspaceId }) => {
     }
   };
 
-  // Column titles
-  const columns = [
+  // Format date
+  const formatDate = (dateString) => {
+    if (!dateString) return 'No due date';
+    
+    try {
+      const date = new Date(dateString);
+      
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'No due date';
+      }
+      
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'No due date';
+    }
+  };
+
+  // Check if date is past due
+  const isPastDue = (dateString) => {
+    if (!dateString) return false;
+    
+    try {
+      const dueDate = new Date(dateString);
+      if (isNaN(dueDate.getTime())) return false;
+      
+      const today = new Date();
+      return dueDate < today;
+    } catch (error) {
+      return false;
+    }
+  };
+
+  if (loading) {
+    return (
+      <MainLayout>
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 'calc(100vh - 64px)' }}>
+          <CircularProgress />
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  if (queryError && !data) {
+    return (
+      <MainLayout>
+        <Box sx={{ p: 3 }}>
+          <Alert severity="error">
+            Error loading tasks: {queryError.message}
+          </Alert>
+          <Button 
+            variant="contained" 
+            sx={{ mt: 2 }}
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </Button>
+        </Box>
+      </MainLayout>
+    );
+  }
+
+  const columnStatuses = [
     { id: 'backlog', title: 'Backlog' },
     { id: 'in-progress', title: 'In Progress' },
     { id: 'review', title: 'Review' },
     { id: 'done', title: 'Done' },
   ];
 
-  if (loading) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '50vh' }}>
-        <CircularProgress />
-      </Box>
-    );
-  }
-
   return (
-    <Box sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5">Task Board</Typography>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => handleOpenTaskDialog()}
-        >
-          Add Task
-        </Button>
-      </Box>
+    <MainLayout>
+      <Box sx={{ p: 3 }}>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Typography variant="h4">Task Board</Typography>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => handleOpenTaskDialog()}
+          >
+            Add Task
+          </Button>
+        </Box>
 
-      <DragDropContext onDragEnd={onDragEnd}>
-        <Grid container spacing={2}>
-          {columns.map((column) => (
-            <Grid item xs={12} sm={6} md={3} key={column.id}>
-              <Paper
-                sx={{
-                  p: 1,
-                  backgroundColor: 'background.default',
-                  height: '100%',
-                  minHeight: 'calc(100vh - 200px)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                }}
-              >
-                <Box
-                  sx={{
-                    p: 1,
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    mb: 1,
-                  }}
-                >
-                  <Typography variant="h6">{column.title}</Typography>
-                  <Chip
-                    label={getTasksByStatus(column.id).length}
-                    size="small"
-                    color="primary"
-                  />
-                </Box>
+        {error && (
+          <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+            {error}
+          </Alert>
+        )}
 
-                <Droppable droppableId={column.id}>
-                  {(provided, snapshot) => (
-                    <Box
-                      ref={provided.innerRef}
-                      {...provided.droppableProps}
-                      sx={{
-                        backgroundColor: snapshot.isDraggingOver
-                          ? 'action.hover'
-                          : 'background.default',
-                        flexGrow: 1,
-                        minHeight: 100,
-                        p: 1,
-                        borderRadius: 1,
-                      }}
-                    >
-                      {getTasksByStatus(column.id).map((task, index) => (
-                        <Draggable
-                          key={task._id}
-                          draggableId={task._id}
-                          index={index}
-                        >
-                          {(provided, snapshot) => (
-                            <Paper
-                              ref={provided.innerRef}
-                              {...provided.draggableProps}
-                              {...provided.dragHandleProps}
-                              elevation={snapshot.isDragging ? 6 : 1}
-                              sx={{
-                                p: 2,
-                                mb: 1,
-                                backgroundColor: 'background.paper',
-                                '&:hover': {
-                                  boxShadow: 3,
-                                },
-                                cursor: 'pointer',
-                              }}
-                              onClick={() => handleOpenTaskDialog(task)}
-                            >
-                              <Box
+        <DragDropContext onDragEnd={onDragEnd}>
+          <Grid container spacing={2}>
+            {columnStatuses.map(column => (
+              <Grid item xs={12} sm={6} md={3} key={column.id}>
+                <Paper sx={{ p: 2, height: '100%', display: 'flex', flexDirection: 'column', minHeight: 300 }}>
+                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                    <Typography variant="h6">{column.title}</Typography>
+                    <Chip 
+                      label={getTasksByStatus(column.id).length} 
+                      size="small" 
+                      color="primary" 
+                    />
+                  </Box>
+                  
+                  <Droppable droppableId={column.id}>
+                    {(provided, snapshot) => (
+                      <Box
+                        ref={provided.innerRef}
+                        {...provided.droppableProps}
+                        sx={{
+                          flexGrow: 1,
+                          minHeight: '200px',
+                          bgcolor: snapshot.isDraggingOver ? 'action.hover' : 'background.default',
+                          p: 1,
+                          borderRadius: 1,
+                          overflow: 'auto',
+                        }}
+                      >
+                        {getTasksByStatus(column.id).map((task, index) => (
+                          <Draggable
+                            key={task._id}
+                            draggableId={task._id}
+                            index={index}
+                          >
+                            {(provided, snapshot) => (
+                              <Paper
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                                elevation={snapshot.isDragging ? 6 : 1}
                                 sx={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'flex-start',
-                                  mb: 1,
+                                  p: 2,
+                                  mb: 2,
+                                  '&:hover': {
+                                    boxShadow: 3,
+                                  },
+                                  cursor: 'pointer',
                                 }}
+                                onClick={() => handleOpenTaskDialog(task)}
                               >
-                                <Typography
-                                  variant="subtitle1"
-                                  component="div"
-                                  sx={{
-                                    fontWeight: 500,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                  }}
-                                >
-                                  {getPriorityIcon(task.priority)}
-                                  <span style={{ marginLeft: 8 }}>
-                                    {task.title}
-                                  </span>
-                                </Typography>
-                                <IconButton
-                                  size="small"
-                                  onClick={(e) => handleTaskMenuOpen(e, task)}
-                                >
-                                  <MoreVertIcon fontSize="small" />
-                                </IconButton>
-                              </Box>
-
-                              {task.description && (
-                                <Typography
-                                  variant="body2"
-                                  color="text.secondary"
-                                  sx={{
-                                    mb: 1,
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                  }}
-                                >
-                                  {task.description}
-                                </Typography>
-                              )}
-
-                              <Box
-                                sx={{
-                                  display: 'flex',
-                                  justifyContent: 'space-between',
-                                  alignItems: 'center',
-                                  mt: 2,
-                                }}
-                              >
-                                <AvatarGroup max={3} sx={{ '& .MuiAvatar-root': { width: 24, height: 24 } }}>
-                                  {task.assignees.map((assignee) => (
-                                    <Avatar
-                                      key={assignee._id}
-                                      src={assignee.profilePicture}
-                                      alt={assignee.username}
-                                      sx={{ width: 24, height: 24 }}
-                                    />
-                                  ))}
-                                </AvatarGroup>
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                  <Typography variant="subtitle1">{task.title}</Typography>
+                                  <IconButton size="small" onClick={(e) => handleOpenMenu(e, task)}>
+                                    <MoreVertIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
                                 
-                                {task.dueDate && (
-                                  <Chip
-                                    label={new Date(task.dueDate).toLocaleDateString()}
-                                    size="small"
-                                    color={
-                                      new Date(task.dueDate) < new Date()
-                                        ? 'error'
-                                        : 'default'
-                                    }
+                                {task.description && (
+                                  <Typography 
+                                    variant="body2" 
+                                    color="text.secondary" 
+                                    sx={{ 
+                                      mt: 1, 
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                    }}
+                                  >
+                                    {task.description}
+                                  </Typography>
+                                )}
+                                
+                                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
+                                  <Chip 
+                                    label={task.priority} 
+                                    size="small" 
+                                    color={getPriorityColor(task.priority)} 
                                     variant="outlined"
                                   />
-                                )}
-                              </Box>
-                            </Paper>
-                          )}
-                        </Draggable>
-                      ))}
-                      {provided.placeholder}
-                    </Box>
-                  )}
-                </Droppable>
-              </Paper>
-            </Grid>
-          ))}
-        </Grid>
-      </DragDropContext>
-
-      {/* Task Menu */}
-      <Menu
-        anchorEl={taskMenuAnchorEl}
-        open={Boolean(taskMenuAnchorEl)}
-        onClose={handleTaskMenuClose}
-      >
-        <MenuItem
-          onClick={() => {
-            handleTaskMenuClose();
-            handleOpenTaskDialog(selectedTask);
-          }}
-        >
-          Edit
-        </MenuItem>
-        <MenuItem onClick={handleDeleteTask}>Delete</MenuItem>
-      </Menu>
+                                  
+                                  {task.dueDate && (
+                                    <Chip
+                                      label={formatDate(task.dueDate)}
+                                      size="small"
+                                      color={isPastDue(task.dueDate) ? 'error' : 'default'}
+                                      variant="outlined"
+                                    />
+                                  )}
+                                </Box>
+                                
+                                <Box sx={{ display: 'flex', alignItems: 'center', mt: 2 }}>
+                                  <Box sx={{ display: 'flex', flexGrow: 1 }}>
+                                    {task.assignees.slice(0, 3).map(assignee => (
+                                      <Avatar 
+                                        key={assignee._id} 
+                                        src={assignee.profilePicture} 
+                                        alt={assignee.username}
+                                        sx={{ width: 24, height: 24, mr: -0.5 }}
+                                      >
+                                        {assignee.username.charAt(0).toUpperCase()}
+                                      </Avatar>
+                                    ))}
+                                    {task.assignees.length > 3 && (
+                                      <Avatar sx={{ width: 24, height: 24, fontSize: '0.75rem' }}>
+                                        +{task.assignees.length - 3}
+                                      </Avatar>
+                                    )}
+                                  </Box>
+                                  
+                                  <Box sx={{ display: 'flex' }}>
+                                    {getPreviousStatus(task.status) && (
+                                      <IconButton 
+                                        size="small" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveTask(task, getPreviousStatus(task.status));
+                                        }}
+                                      >
+                                        <ArrowBackIcon fontSize="small" />
+                                      </IconButton>
+                                    )}
+                                    
+                                    {getNextStatus(task.status) && (
+                                      <IconButton 
+                                        size="small" 
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleMoveTask(task, getNextStatus(task.status));
+                                        }}
+                                      >
+                                        <ArrowForwardIcon fontSize="small" />
+                                      </IconButton>
+                                    )}
+                                  </Box>
+                                </Box>
+                              </Paper>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        
+                        {getTasksByStatus(column.id).length === 0 && (
+                          <Box sx={{ 
+                            height: '100%', 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center',
+                            p: 2,
+                            color: 'text.secondary',
+                            fontStyle: 'italic'
+                          }}>
+                            <Typography variant="body2">No tasks</Typography>
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+                  </Droppable>
+                </Paper>
+              </Grid>
+            ))}
+          </Grid>
+        </DragDropContext>
+      </Box>
 
       {/* Task Dialog */}
-      <Dialog
-        open={taskDialogOpen}
-        onClose={handleCloseTaskDialog}
-        maxWidth="md"
+      <Dialog 
+        open={taskDialogOpen} 
+        onClose={handleCloseTaskDialog} 
+        maxWidth="md" 
         fullWidth
       >
-        <DialogTitle>
-          {selectedTask ? 'Edit Task' : 'Create New Task'}
-        </DialogTitle>
+        <DialogTitle>{selectedTask ? 'Edit Task' : 'Create New Task'}</DialogTitle>
         <DialogContent dividers>
-          <Grid container spacing={2}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+              {error}
+            </Alert>
+          )}
+          
+          <Grid container spacing={3}>
             <Grid item xs={12}>
               <TextField
-                fullWidth
-                label="Title"
+                autoFocus
+                margin="normal"
+                id="title"
                 name="title"
-                value={newTask.title}
-                onChange={handleTaskFormChange}
+                label="Task Title"
+                type="text"
+                fullWidth
+                variant="outlined"
+                value={taskForm.title}
+                onChange={handleFormChange}
                 required
+                sx={{ mb: 2 }}
               />
             </Grid>
             <Grid item xs={12}>
               <TextField
-                fullWidth
-                label="Description"
+                margin="normal"
+                id="description"
                 name="description"
-                value={newTask.description}
-                onChange={handleTaskFormChange}
+                label="Description"
+                type="text"
+                fullWidth
+                variant="outlined"
                 multiline
-                rows={3}
+                rows={4}
+                value={taskForm.description}
+                onChange={handleFormChange}
+                sx={{ mb: 2 }}
               />
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth margin="normal">
                 <InputLabel>Status</InputLabel>
                 <Select
                   name="status"
-                  value={newTask.status}
-                  onChange={handleTaskFormChange}
+                  value={taskForm.status}
+                  onChange={handleFormChange}
                   label="Status"
                 >
                   <MenuItem value="backlog">Backlog</MenuItem>
@@ -540,13 +676,13 @@ const TaskBoard = ({ workspaceId }) => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth margin="normal">
                 <InputLabel>Priority</InputLabel>
                 <Select
                   name="priority"
-                  value={newTask.priority}
-                  onChange={handleTaskFormChange}
+                  value={taskForm.priority}
+                  onChange={handleFormChange}
                   label="Priority"
                 >
                   <MenuItem value="high">
@@ -570,32 +706,25 @@ const TaskBoard = ({ workspaceId }) => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12}>
-              <FormControl fullWidth>
+            <Grid item xs={12} md={6}>
+              <FormControl fullWidth margin="normal">
                 <InputLabel>Assignees</InputLabel>
                 <Select
                   multiple
                   name="assignees"
-                  value={newTask.assignees}
-                  onChange={handleAssigneeChange}
+                  value={taskForm.assignees}
+                  onChange={handleMultipleSelectChange}
                   label="Assignees"
                   renderValue={(selected) => (
                     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
-                      {selected.map((memberId) => {
-                        const member = data.getWorkspaceMembers.find(
-                          (m) => m._id === memberId
-                        );
+                      {selected.map((value) => {
+                        const member = data?.getWorkspaceMembers?.find(m => m._id === value);
                         return (
-                          <Chip
-                            key={memberId}
-                            avatar={
-                              <Avatar
-                                src={member?.profilePicture}
-                                alt={member?.username}
-                              />
-                            }
-                            label={member?.username}
+                          <Chip 
+                            key={value} 
+                            label={member?.username || "User"} 
                             size="small"
+                            avatar={<Avatar src={member?.profilePicture} />}
                           />
                         );
                       })}
@@ -605,11 +734,12 @@ const TaskBoard = ({ workspaceId }) => {
                   {data?.getWorkspaceMembers?.map((member) => (
                     <MenuItem key={member._id} value={member._id}>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
-                        <Avatar
-                          src={member.profilePicture}
-                          alt={member.username}
-                          sx={{ width: 24, height: 24, mr: 1 }}
-                        />
+                        <Avatar 
+                          src={member.profilePicture} 
+                          sx={{ width: 24, height: 24, mr: 1 }} 
+                        >
+                          {member.username.charAt(0).toUpperCase()}
+                        </Avatar>
                         {member.username}
                       </Box>
                     </MenuItem>
@@ -617,16 +747,18 @@ const TaskBoard = ({ workspaceId }) => {
                 </Select>
               </FormControl>
             </Grid>
-            <Grid item xs={12} sm={6}>
+            <Grid item xs={12} md={6}>
               <TextField
                 fullWidth
+                margin="normal"
                 label="Due Date"
-                name="dueDate"
                 type="date"
-                value={newTask.dueDate ? new Date(newTask.dueDate).toISOString().split('T')[0] : ''}
-                onChange={handleTaskFormChange}
-                InputLabelProps={{
-                  shrink: true,
+                name="dueDate"
+                value={taskForm.dueDate || ''}
+                onChange={handleFormChange}
+                InputLabelProps={{ shrink: true }}
+                inputProps={{
+                  min: new Date().toISOString().split('T')[0] // Sets min date to today
                 }}
               />
             </Grid>
@@ -634,20 +766,40 @@ const TaskBoard = ({ workspaceId }) => {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseTaskDialog}>Cancel</Button>
-          <Button
-            variant="contained"
+          <Button 
+            variant="contained" 
             onClick={handleSaveTask}
-            disabled={!newTask.title || createLoading || updateLoading}
+            disabled={!taskForm.title || createLoading || updateLoading}
+            startIcon={createLoading || updateLoading ? <CircularProgress size={20} /> : null}
           >
-            {createLoading || updateLoading
-              ? 'Saving...'
-              : selectedTask
-              ? 'Update'
-              : 'Create'}
+            {createLoading || updateLoading 
+              ? (selectedTask ? 'Updating...' : 'Creating...') 
+              : (selectedTask ? 'Update' : 'Create')}
           </Button>
         </DialogActions>
       </Dialog>
-    </Box>
+
+      {/* Task Menu */}
+      <Menu
+        anchorEl={menuAnchorEl}
+        open={Boolean(menuAnchorEl)}
+        onClose={handleCloseMenu}
+      >
+        <MenuItem onClick={() => {
+          handleCloseMenu();
+          handleOpenTaskDialog(selectedTask);
+        }}>
+          Edit
+        </MenuItem>
+        <MenuItem 
+          onClick={handleDeleteTask}
+          disabled={deleteLoading}
+          sx={{ color: 'error.main' }}
+        >
+          {deleteLoading ? 'Deleting...' : 'Delete'}
+        </MenuItem>
+      </Menu>
+    </MainLayout>
   );
 };
 

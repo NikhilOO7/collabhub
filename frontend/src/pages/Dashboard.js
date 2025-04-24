@@ -140,6 +140,22 @@ const Dashboard = () => {
     }
   }, [location]);
 
+  // Format date function to handle invalid dates
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Recently';
+    
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return 'Recently';
+      }
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Recently';
+    }
+  };
+
   // Handle workspace click
   const handleWorkspaceClick = (workspace) => {
     setActiveWorkspace(workspace);
@@ -374,7 +390,7 @@ const Dashboard = () => {
                             </Avatar>
                           </Tooltip>
                           <Typography variant="body2" color="text.secondary">
-                            Created {new Date(workspace.createdAt).toLocaleDateString()}
+                            Created {formatDate(workspace.createdAt)}
                           </Typography>
                         </Box>
                       </CardContent>
@@ -476,7 +492,7 @@ const Dashboard = () => {
                               </Typography>
                               {` — ${activity.content}`}
                               <Typography variant="caption" display="block">
-                                in {activity.workspace.name} - {new Date(activity.createdAt).toLocaleString()}
+                                in {activity.workspace.name} - {formatDate(activity.createdAt)}
                               </Typography>
                             </>
                           }
@@ -525,7 +541,7 @@ const Dashboard = () => {
                               </Typography>
                               <Box sx={{ mt: 1 }}>
                                 <Typography variant="caption" color="primary">
-                                  {new Date(meeting.startTime).toLocaleString()}
+                                  {formatDate(meeting.startTime)}
                                 </Typography>
                                 <AvatarGroup max={3} sx={{ mt: 1 }}>
                                   {meeting.participants.map((participant, index) => (

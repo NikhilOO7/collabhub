@@ -1,5 +1,4 @@
-// graphql/schema.js - Fixed version without syntax errors
-
+// graphql/schema.js
 const { gql } = require('apollo-server-express');
 
 const typeDefs = gql`
@@ -233,6 +232,18 @@ const typeDefs = gql`
     createdAt: String!
   }
 
+  # Notification Types
+  type Notification {
+    _id: ID!
+    type: String!
+    title: String!
+    content: String
+    user: ID!
+    relatedId: ID
+    read: Boolean!
+    createdAt: String!
+  }
+
   # Query and Mutation
   type Query {
     # User Queries
@@ -267,6 +278,10 @@ const typeDefs = gql`
 
     # Activity Queries
     getRecentActivities: [Activity!]
+
+    # Notification Queries
+    getUserNotifications: [Notification!]
+    getUnreadNotificationsCount: Int!
 
     # Invitation queries
     getWorkspaceInvitations(workspaceId: ID!): [WorkspaceInvitation!]
@@ -321,6 +336,12 @@ const typeDefs = gql`
     joinMeeting(meetingId: ID!): Meeting!
     leaveMeeting(meetingId: ID!): Boolean!
     endMeeting(meetingId: ID!): Meeting!
+    sendMeetingInvite(meetingId: ID!, userIds: [ID!]!): Boolean!
+
+    # Notification Mutations
+    markNotificationAsRead(notificationId: ID!): Boolean!
+    markAllNotificationsAsRead: Boolean!
+    deleteNotification(notificationId: ID!): Boolean!
 
     # Invitation mutations
     inviteUserToWorkspace(input: WorkspaceInvitationInput!): WorkspaceInvitation!

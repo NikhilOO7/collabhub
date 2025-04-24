@@ -196,15 +196,93 @@ module.exports = {
       
       return meeting;
     },
+
+    sendMeetingInvite: async (_, { meetingId, userIds }, { user, req }) => {
+      isAuthenticated(user);
+      
+      const meeting = await Meeting.findById(meetingId);
+      
+      if (!meeting) {
+        throw new Error('Meeting not found');
+      }
+      
+      // Check if user is the host or a participant
+      const isHost = meeting.host.toString() === user._id.toString();
+      const isParticipant = meeting.participants.includes(user._id);
+      
+      if (!isHost && !isParticipant) {
+        throw new Error('Not authorized to send invites for this meeting');
+      }
+      
+      // Get meeting details for notification
+      await meeting.populate('host');
+      
+      // Get socket.io instance
+      const io = req?.app?.get('io');
+      
+      // Helper function to get user sockets
+      const getUserSockets = (userId) => {
+        if (!io) return [];
+        const userSocketMap = io.userSocketMap || new Map();
+        const socketIds = userSocketMap.get(userId) || [];
+        return socketIds.map(id => io.sockets.sockets.get(id)).filter(Boolean);
+      };
+      
+      // Send invitation to each user
+      for (const userId of userIds) {
+        // Add user to meeting participants if not already there
+        if (!meeting.participants.includes(userId)) {
+          meeting.participants.push(userId);
+        }
+        
+        // Send real-time notification via socket.io
+        if (io) {
+          const userSockets = getUserSockets(userId);
+          
+          if (userSockets.length > 0) {
+            const notificationData = {
+              type: 'meeting-invite',
+              meetingId,
+              title: meeting.title,
+              host: {
+                _id: meeting.host._id,
+                username: meeting.host.username,
+                profilePicture: meeting.host.profilePicture
+              },
+              inviter: {
+                _id: user._id,
+                username: user.username
+              },
+              workspaceId: meeting.workspaceId,
+              timestamp: new Date().toISOString()
+            };
+            
+            userSockets.forEach(socket => {
+              socket.emit('meeting-invite', notificationData);
+            });
+          }
+          
+          // Create notification in database (implement if you have a Notification model)
+          // This could be added later
+        }
+      }
+      
+      // Save updated meeting with new participants
+      await meeting.save();
+      
+      return true;
+    }
   },
   
   Meeting: {
     host: async (parent) => {
-      return User.findById(parent.host);
+      if (parent.host._id) return parent.host; // Already populated
+      return await User.findById(parent.host);
     },
     
     participants: async (parent) => {
-      return User.find({ _id: { $in: parent.participants } });
+      if (parent.participants?.[0]?._id) return parent.participants; // Already populated
+      return await User.find({ _id: { $in: parent.participants } });
     },
   },
 };

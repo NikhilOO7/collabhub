@@ -71,7 +71,7 @@ const ChatRoom = () => {
   });
 
   // Send message mutation
-  const [sendMessage] = useMutation(SEND_MESSAGE);
+  const [sendMessage, { loading: sendLoading }] = useMutation(SEND_MESSAGE);
 
   // Update messages when data changes
   useEffect(() => {
@@ -129,42 +129,6 @@ const ChatRoom = () => {
   }, [messages]);
 
   // Handle message change with typing indicator
-  useEffect(() => {
-    let typingTimeout;
-    
-    if (socket && message && channelId) {
-      socket.emit('typing', {
-        channelId,
-        isTyping: true,
-      });
-      
-      // Clear previous timeout
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
-      
-      // Set new timeout to stop typing indicator
-      typingTimeout = setTimeout(() => {
-        socket.emit('typing', {
-          channelId,
-          isTyping: false,
-        });
-      }, 2000);
-    }
-    
-    return () => {
-      if (typingTimeout) {
-        clearTimeout(typingTimeout);
-      }
-    };
-  }, [message, socket, channelId]);
-
-  // Handle message change
-  const handleMessageChange = (e) => {
-    setMessage(e.target.value);
-  };
-
-  // Handle message submit
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -184,6 +148,44 @@ const ChatRoom = () => {
     } catch (err) {
       console.error('Error sending message:', err);
     }
+  };
+  
+  // Update socket emission with connection check
+  useEffect(() => {
+    let typingTimeout;
+    
+    if (socket && socket.connected && message && channelId) {
+      socket.emit('typing', {
+        channelId,
+        isTyping: true,
+      });
+      
+      // Clear previous timeout
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+      
+      // Set new timeout to stop typing indicator
+      typingTimeout = setTimeout(() => {
+        if (socket && socket.connected) {
+          socket.emit('typing', {
+            channelId,
+            isTyping: false,
+          });
+        }
+      }, 2000);
+    }
+    
+    return () => {
+      if (typingTimeout) {
+        clearTimeout(typingTimeout);
+      }
+    };
+  }, [message, socket, channelId]);
+
+  // Handle message change
+  const handleMessageChange = (e) => {
+    setMessage(e.target.value);
   };
 
   // Format time
@@ -330,10 +332,10 @@ const ChatRoom = () => {
           <IconButton
             color="primary"
             type="submit"
-            disabled={!message.trim()}
+            disabled={!message.trim() || sendLoading}
             sx={{ ml: 1 }}
           >
-            <SendIcon />
+            {sendLoading ? <CircularProgress size={24} /> : <SendIcon />}
           </IconButton>
         </Box>
       </Box>

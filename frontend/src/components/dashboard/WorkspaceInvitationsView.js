@@ -184,8 +184,23 @@ const WorkspaceInvitationsView = () => {
 
   // Format date to a readable string
   const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString();
+    if (!dateString) return 'Recently';
+    
+    try {
+      // Try to parse the date
+      const date = new Date(dateString);
+      
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        return 'Recently';
+      }
+      
+      // Format the date
+      return date.toLocaleDateString();
+    } catch (error) {
+      console.error('Error formatting date:', error);
+      return 'Recently';
+    }
   };
 
   // Get pending invitations
@@ -229,7 +244,7 @@ const WorkspaceInvitationsView = () => {
                       </Avatar>
                       <Box>
                         <Typography variant="h6" gutterBottom sx={{ mb: 0 }}>
-                          {invitation.workspace.name}
+                            {invitation.workspaceId.name}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
                           Invited by {invitation.invitedBy.username}
